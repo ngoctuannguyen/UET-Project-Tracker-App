@@ -4,7 +4,8 @@
   "description": "Major assignment of Software Engineering",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -12,8 +13,10 @@
   "dependencies": {
     "@zxing/library": "^0.21.3",
     "axios": "^1.7.9",
+    "bcrypt": "^5.1.1",
     "express": "^4.21.2",
     "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.12.0",
     "quagga": "^0.12.1"
   }
 }
