@@ -158,11 +158,11 @@ Let me know if there's anything else I can assist you with!
 
 """
 
-BINGSEARCH_PROMPT = ChatPromptTemplate.from_messages(
-    [
-        ("system", BING_PROMPT_PREFIX),
-        MessagesPlaceholder(variable_name="history", optional=True),
-        ("human", "{question}"),
-        MessagesPlaceholder(variable_name='agent_scratchpad')
-    ]
-)
+# BINGSEARCH_PROMPT = ChatPromptTemplate.from_messages(
+#     [
+#         ("system", BING_PROMPT_PREFIX),
+#         MessagesPlaceholder(variable_name="history", optional=True),
+#         ("human", "{question}"),
+#         MessagesPlaceholder(variable_name='agent_scratchpad')
+#     ]
+# )
