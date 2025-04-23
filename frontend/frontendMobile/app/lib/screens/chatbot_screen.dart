@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
 import 'package:app/screens/camera_screen.dart';
+import 'package:app/screens/settings_screen.dart';
 // import 'package:app/screens/settings_screen.dart';
 
 class ChatbotScreen extends StatefulWidget {
@@ -67,8 +68,12 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       case 3: // Chat Bot (đang ở đây)
         break;
       case 4: // Settings
-        print('Navigate to Settings Screen');
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SettingsScreen()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const SettingsScreen(),
+          ), // Điều hướng đến SettingsScreen
+        );
         break;
     }
   }

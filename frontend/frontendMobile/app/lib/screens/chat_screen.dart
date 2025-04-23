@@ -1,57 +1,32 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math; // Để dùng cho Bubble và xoay icon
+import 'dart:async'; // Để dùng Timer giả lập tin nhắn
 
-// import 'package:app/screens/chatbot_screen.dart';
-// Model đơn giản cho tin nhắn (bạn có thể mở rộng thêm)
+// Định nghĩa cấu trúc tin nhắn (có thể mở rộng thêm userId, timestamp,...)
 class ChatMessage {
+  final String
+  senderId; // ID của người gửi ('user' cho người dùng hiện tại, hoặc ID khác)
+  final String senderName; // Tên người gửi (quan trọng cho group chat)
   final String text;
-  final String sender; // 'me' hoặc 'friend'
-  final String time;
-  final String? audioUrl; // Tùy chọn: đường dẫn file âm thanh
-  final Duration? audioDuration; // Tùy chọn: thời lượng âm thanh
+  final DateTime timestamp;
 
   ChatMessage({
+    required this.senderId,
+    required this.senderName,
     required this.text,
-    required this.sender,
-    required this.time,
-    this.audioUrl,
-    this.audioDuration,
+    required this.timestamp,
   });
 }
 
-// Dữ liệu giả lập cho cuộc trò chuyện
-final List<ChatMessage> chatMessages = [
-  ChatMessage(
-    text: 'Hello ! Nazrul How are you?',
-    sender: 'friend',
-    time: '09:25 AM',
-  ),
-  ChatMessage(text: 'You did your job well!', sender: 'me', time: '09:25 AM'),
-  ChatMessage(
-    text: 'Have a great working week!!',
-    sender: 'friend',
-    time: '09:25 AM',
-  ),
-  ChatMessage(text: 'Hope you like it', sender: 'friend', time: '09:25 AM'),
-  ChatMessage(
-    text: '', // Text rỗng cho tin nhắn thoại
-    sender: 'me',
-    time: '09:25 AM',
-    audioUrl: 'fake_audio.mp3', // Đường dẫn giả
-    audioDuration: const Duration(seconds: 16),
-  ),
-];
-
 class ChatScreen extends StatefulWidget {
-  final String friendName;
-  final String friendAvatarUrl;
-  final String friendStatus;
+  final String chatTargetId; // ID của người nhận hoặc nhóm chat
+  final String chatTargetName; // Tên người nhận hoặc nhóm chat
+  final bool isGroupChat; // Cờ xác định đây là chat nhóm hay không
 
   const ChatScreen({
     Key? key,
-    required this.friendName,
-    required this.friendAvatarUrl,
-    required this.friendStatus,
+    required this.chatTargetId,
+    required this.chatTargetName,
+    this.isGroupChat = false,
   }) : super(key: key);
 
   @override
@@ -59,135 +34,291 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final TextEditingController _textController = TextEditingController();
+  final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  // Index của tab hiện tại khi đang ở màn hình chat (có thể là -1 để không tab nào sáng)
-  // Hoặc bạn có thể giữ nguyên index của tab đã dẫn đến đây (ví dụ: Nhóm là 1)
-  int _selectedIndex = 1; // Giả sử đến từ tab Nhóm
+  final List<ChatMessage> _messages = []; // Danh sách tin nhắn
+  final String _currentUserId =
+      'user'; // ID người dùng hiện tại (cần thay bằng ID thực tế)
+  final String _currentUserName = 'Bạn'; // Tên người dùng hiện tại
+
+  @override
+  void initState() {
+    super.initState();
+    // Tải tin nhắn cũ (giả lập)
+    _loadInitialMessages();
+    // Tự động cuộn xuống cuối khi có tin nhắn mới hoặc bàn phím hiện lên
+    // (Cần xử lý phức tạp hơn nếu muốn giữ vị trí cuộn)
+  }
 
   @override
   void dispose() {
-    _textController.dispose();
+    _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  // Hàm xử lý khi nhấn vào BottomNavigationBar item trên màn hình này
-  void _onItemTapped(int index) {
-    if (index == 0) {
-      // Home
-      // Quay về màn hình gốc (HomeScreen)
-      Navigator.popUntil(context, (route) => route.isFirst);
-    } else if (index == 1) {
-      // Nhóm
-      // Nếu đang ở ChatScreen (đã push từ FriendsList), pop về FriendsList
-      if (Navigator.canPop(context)) {
-        // Kiểm tra xem có phải về từ FriendsList không, nếu không thì pushReplacement
-        // Cách đơn giản hơn: Cứ pop về màn trước (là FriendsList)
-        Navigator.pop(context);
-      } else {
-        // Trường hợp hy hữu: vào thẳng Chat mà không qua FriendsList
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => FriendsListScreen()));
-      }
-    } else {
-      // Xử lý cho các tab khác (Camera, Chat Bot, Settings)
-      // Có thể push các màn hình tương ứng lên trên màn Chat hiện tại
-      setState(() {
-        _selectedIndex = index;
+  // Giả lập tải tin nhắn ban đầu
+  void _loadInitialMessages() {
+    // TODO: Thay thế bằng logic gọi API lấy lịch sử chat dựa trên widget.chatTargetId
+    setState(() {
+      _messages.addAll([
+        ChatMessage(
+          senderId: widget.isGroupChat ? 'Alice' : widget.chatTargetId,
+          senderName: widget.isGroupChat ? 'Alice' : widget.chatTargetName,
+          text: 'Chào bạn!',
+          timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
+        ),
+        ChatMessage(
+          senderId: _currentUserId,
+          senderName: _currentUserName,
+          text: 'Chào!',
+          timestamp: DateTime.now().subtract(const Duration(minutes: 4)),
+        ),
+        if (widget.isGroupChat)
+          ChatMessage(
+            senderId: 'Bob',
+            senderName: 'Bob',
+            text: 'Mọi người thấy sao về đề xuất mới?',
+            timestamp: DateTime.now().subtract(const Duration(minutes: 3)),
+          ),
+        ChatMessage(
+          senderId: widget.isGroupChat ? 'Alice' : widget.chatTargetId,
+          senderName: widget.isGroupChat ? 'Alice' : widget.chatTargetName,
+          text: 'Rất hay đó!',
+          timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
+        ),
+      ]);
+    });
+    _scrollToBottom();
+  }
+
+  // Hàm gửi tin nhắn
+  void _sendMessage() {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    final newMessage = ChatMessage(
+      senderId: _currentUserId,
+      senderName: _currentUserName, // Tên của người dùng hiện tại
+      text: text,
+      timestamp: DateTime.now(),
+    );
+
+    setState(() {
+      _messages.add(newMessage);
+    });
+
+    _messageController.clear();
+    _scrollToBottom(); // Cuộn xuống khi gửi
+
+    // TODO: Gửi tin nhắn lên server (API call)
+    print('Gửi tin nhắn: "$text" đến ${widget.chatTargetId}');
+
+    // Giả lập tin nhắn trả lời (cho demo)
+    if (!widget.isGroupChat) {
+      Timer(const Duration(seconds: 1), () {
+        if (mounted) {
+          // Kiểm tra widget còn tồn tại không
+          final replyMessage = ChatMessage(
+            senderId: widget.chatTargetId,
+            senderName: widget.chatTargetName,
+            text: 'Đã nhận: "$text"',
+            timestamp: DateTime.now(),
+          );
+          setState(() {
+            _messages.add(replyMessage);
+          });
+          _scrollToBottom();
+        }
       });
-      print('Chat screen - Selected index: $index');
-      // TODO: Điều hướng đến các màn hình khác từ ChatScreen
-      // Ví dụ:
-      // if (index == 2) {
-      //   Navigator.push(context, MaterialPageRoute(builder: (context) => ReportScreen()));
-      // }
+    } else {
+      // Trong group chat, tin nhắn mới sẽ được push từ server (không cần giả lập trả lời)
     }
   }
 
-  void _sendMessage() {
-    if (_textController.text.trim().isEmpty) return; // Không gửi tin nhắn rỗng
-
-    setState(() {
-      // Thêm tin nhắn mới vào danh sách (hiện chỉ là dữ liệu giả)
-      chatMessages.add(
-        ChatMessage(
-          text: _textController.text.trim(),
-          sender: 'me',
-          time: TimeOfDay.now().format(context), // Lấy giờ hiện tại
-        ),
-      );
-      _textController.clear(); // Xóa nội dung trong ô nhập liệu
-
-      // Cuộn xuống dưới cùng sau khi gửi
-      // Đợi 1 chút để ListView cập nhật rồi mới cuộn
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController
-                .position
-                .minScrollExtent, // Cuộn xuống dưới cùng (vì reverse=true)
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+  // Hàm cuộn xuống cuối danh sách tin nhắn
+  void _scrollToBottom() {
+    // Đảm bảo việc cuộn xảy ra sau khi frame đã được build xong
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
-    print('Sending message: ${_textController.text.trim()}');
+  }
+
+  // Widget hiển thị một bong bóng tin nhắn
+  Widget _buildMessageBubble(ChatMessage message) {
+    final isUserMessage = message.senderId == _currentUserId;
+    final alignment =
+        isUserMessage ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final color = isUserMessage ? Colors.blue[400] : Colors.grey[300];
+    final textColor = isUserMessage ? Colors.white : Colors.black87;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Column(
+        crossAxisAlignment: alignment,
+        children: [
+          // Hiển thị tên người gửi trong group chat (nếu không phải người dùng hiện tại)
+          if (widget.isGroupChat && !isUserMessage)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 15.0,
+                right: 15.0,
+                bottom: 2.0,
+              ),
+              child: Text(
+                message.senderName,
+                style: const TextStyle(fontSize: 12.0, color: Colors.grey),
+              ),
+            ),
+          // Bong bóng tin nhắn
+          Row(
+            mainAxisAlignment:
+                isUserMessage ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              ConstrainedBox(
+                // Giới hạn chiều rộng của bong bóng
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.75,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14.0,
+                    vertical: 10.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(15.0),
+                  ),
+                  child: Text(
+                    message.text,
+                    style: TextStyle(color: textColor, fontSize: 16.0),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // Hiển thị thời gian (có thể thêm vào dưới bong bóng)
+          // Padding(
+          //   padding: const EdgeInsets.only(top: 2.0, left: 15.0, right: 15.0),
+          //   child: Text(
+          //     DateFormat('HH:mm').format(message.timestamp), // Cần import 'package:intl/intl.dart';
+          //     style: TextStyle(fontSize: 10.0, color: Colors.grey),
+          //   ),
+          // ),
+        ],
+      ),
+    );
+  }
+
+  // Widget khu vực nhập liệu
+  Widget _buildInputArea() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        boxShadow: [
+          BoxShadow(
+            offset: const Offset(0, -1),
+            blurRadius: 3.0,
+            color: Colors.black.withOpacity(0.05),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        // Đảm bảo không bị che bởi notch hoặc bottom bar hệ thống
+        child: Row(
+          children: [
+            // Có thể thêm nút đính kèm file ở đây
+            // IconButton(
+            //   icon: Icon(Icons.attach_file),
+            //   onPressed: () {},
+            // ),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14.0),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(25.0),
+                ),
+                child: TextField(
+                  controller: _messageController,
+                  decoration: const InputDecoration(
+                    hintText: 'Nhập tin nhắn...',
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      vertical: 10.0,
+                    ), // Điều chỉnh padding dọc
+                  ),
+                  textCapitalization: TextCapitalization.sentences,
+                  minLines: 1,
+                  maxLines: 5, // Cho phép nhập nhiều dòng
+                  onSubmitted: (_) => _sendMessage(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            // Nút gửi
+            FloatingActionButton(
+              mini: true, // Kích thước nhỏ hơn
+              onPressed: _sendMessage,
+              child: const Icon(Icons.send),
+              backgroundColor: Colors.blueAccent,
+              elevation: 1.0,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Hàm hiển thị thông tin nhóm (ví dụ)
+  void _showGroupInfo() {
+    // Bạn có thể dùng lại dialog _showGroupMembers từ friends_list_screen
+    // hoặc tạo một dialog/màn hình mới hiển thị chi tiết hơn
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text('Nhóm "${widget.chatTargetName}"'),
+            content: const Text(
+              'Đây là nơi hiển thị danh sách thành viên và các tùy chọn khác của nhóm.',
+            ), // Placeholder
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white, // Nền trắng cho AppBar
-        elevation: 1.0, // Bóng mờ nhẹ
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black54),
-          onPressed: () => Navigator.pop(context), // Quay lại màn hình trước
-        ),
-        title: Row(
-          children: [
-            CircleAvatar(
-              backgroundImage: AssetImage(widget.friendAvatarUrl),
-              radius: 20,
-              // TODO: Thêm chấm trạng thái online
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.friendName,
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  widget.friendStatus,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-              ],
-            ),
-          ],
-        ),
+        title: Text(widget.chatTargetName), // Hiển thị tên người/nhóm chat
+        backgroundColor: Colors.blueAccent,
+        elevation: 1.0, // Giảm shadow
         actions: [
-          IconButton(
-            icon: const Icon(Icons.call_outlined, color: Colors.black54),
-            onPressed: () {
-              // TODO: Thực hiện cuộc gọi thoại
-              print('Call button pressed');
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.videocam_outlined, color: Colors.black54),
-            onPressed: () {
-              // TODO: Thực hiện cuộc gọi video
-              print('Video call button pressed');
-            },
-          ),
-          const SizedBox(width: 5),
+          // Hiển thị nút thông tin nếu là group chat
+          if (widget.isGroupChat)
+            IconButton(
+              icon: const Icon(Icons.info_outline),
+              tooltip: 'Thông tin nhóm',
+              onPressed: _showGroupInfo,
+            ),
+          // Có thể thêm các nút khác như gọi video/audio
+          // IconButton(
+          //   icon: Icon(Icons.videocam_outlined),
+          //   onPressed: () {},
+          // ),
         ],
       ),
       body: Column(
@@ -196,15 +327,15 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              reverse: true, // Hiển thị tin nhắn mới nhất ở dưới cùng
+              reverse:
+                  false, // Hiển thị từ trên xuống dưới, tin mới nhất ở cuối
               padding: const EdgeInsets.symmetric(
                 vertical: 10.0,
                 horizontal: 8.0,
               ),
-              itemCount: chatMessages.length,
+              itemCount: _messages.length,
               itemBuilder: (context, index) {
-                // Sắp xếp lại để lấy tin nhắn từ cũ đến mới khi reverse=true
-                final message = chatMessages[chatMessages.length - 1 - index];
+                final message = _messages[index];
                 return _buildMessageBubble(message);
               },
             ),
@@ -213,240 +344,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _buildInputArea(),
         ],
       ),
-      // BottomNavigationBar giữ nguyên cấu trúc
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Trang chủ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.group_outlined),
-            activeIcon: Icon(Icons.group),
-            label: 'Nhóm',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.camera_alt_outlined),
-            activeIcon: Icon(Icons.camera_alt),
-            label: 'Camera',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            activeIcon: Icon(Icons.chat_bubble),
-            label: 'Chat',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: 'Cài đặt',
-          ),
-        ],
-        currentIndex: _selectedIndex, // Index có thể là 1 (Nhóm) hoặc -1
-        onTap: _onItemTapped, // Sử dụng hàm điều hướng của màn hình này
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blueAccent[700],
-        unselectedItemColor: Colors.grey[600],
-        backgroundColor: Colors.white,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        elevation: 8.0,
-      ),
-    );
-  }
-
-  // Widget xây dựng bong bóng tin nhắn
-  Widget _buildMessageBubble(ChatMessage message) {
-    bool isMe = message.sender == 'me';
-    bool isAudio = message.audioUrl != null;
-
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-        padding: EdgeInsets.symmetric(
-          horizontal: isAudio ? 8.0 : 12.0,
-          vertical: isAudio ? 6.0 : 10.0,
-        ),
-        constraints: BoxConstraints(
-          // Giới hạn chiều rộng của bubble
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        decoration: BoxDecoration(
-          color:
-              isMe
-                  ? Colors.teal[300] // Màu xanh cho tin nhắn của tôi
-                  : Colors.grey[200], // Màu xám nhạt cho tin nhắn bạn bè
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18.0),
-            topRight: const Radius.circular(18.0),
-            bottomLeft: isMe ? const Radius.circular(18.0) : Radius.zero,
-            bottomRight: isMe ? Radius.zero : const Radius.circular(18.0),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            // Hiển thị nội dung tin nhắn (Text hoặc Audio Player)
-            isAudio
-                ? _buildAudioPlayer(message)
-                : Text(
-                  message.text,
-                  style: TextStyle(color: isMe ? Colors.white : Colors.black87),
-                ),
-            const SizedBox(height: 4.0),
-            // Hiển thị thời gian
-            Text(
-              message.time,
-              style: TextStyle(
-                fontSize: 10.0,
-                color: isMe ? Colors.white70 : Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Widget xây dựng trình phát âm thanh (giả lập)
-  Widget _buildAudioPlayer(ChatMessage message) {
-    // TODO: Tích hợp thư viện phát âm thanh thực tế (ví dụ: just_audio)
-    return Row(
-      mainAxisSize: MainAxisSize.min, // Chỉ chiếm không gian cần thiết
-      children: [
-        IconButton(
-          icon: const Icon(Icons.play_arrow, color: Colors.white),
-          onPressed: () {
-            print('Play audio: ${message.audioUrl}');
-            // TODO: Xử lý play/pause audio
-          },
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-        ),
-        const SizedBox(width: 8),
-        // Phần hiển thị sóng âm (giả lập bằng các đường thẳng)
-        Expanded(
-          // Cho phép nó chiếm không gian còn lại
-          child: LayoutBuilder(
-            // Lấy chiều rộng thực tế để vẽ
-            builder: (context, constraints) {
-              final waveWidth = constraints.maxWidth;
-              final barCount =
-                  (waveWidth / 4).floor(); // Số lượng thanh sóng âm
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: List.generate(barCount, (index) {
-                  // Tạo chiều cao ngẫu nhiên cho các thanh
-                  final barHeight = (math.Random().nextDouble() * 14) + 2.0;
-                  return Container(
-                    width: 2.5,
-                    height: barHeight,
-                    margin: const EdgeInsets.symmetric(horizontal: 0.75),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  );
-                }),
-              );
-            },
-          ),
-        ),
-        const SizedBox(width: 8),
-        // Hiển thị thời lượng
-        Text(
-          // Format thời lượng (ví dụ: 00:16)
-          '${message.audioDuration!.inMinutes.toString().padLeft(2, '0')}:${(message.audioDuration!.inSeconds % 60).toString().padLeft(2, '0')}',
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-        ),
-      ],
-    );
-  }
-
-  // Widget xây dựng khu vực nhập liệu
-  Widget _buildInputArea() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor, // Màu nền của Card
-        boxShadow: [
-          BoxShadow(
-            offset: const Offset(0, -1),
-            blurRadius: 2,
-            color: Colors.black.withOpacity(0.05),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        // Đảm bảo không bị che bởi bàn phím hoặc thanh điều hướng ảo
-        child: Row(
-          children: [
-            // Ô nhập liệu
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 2.0,
-                ), // Giảm padding ngang
-                decoration: BoxDecoration(
-                  color: Colors.grey[100], // Nền xám rất nhạt cho ô nhập
-                  borderRadius: BorderRadius.circular(25.0),
-                ),
-                child: TextField(
-                  controller: _textController,
-                  decoration: InputDecoration(
-                    hintText: 'Make...', // Giống trong hình
-                    border: InputBorder.none, // Bỏ viền
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 10.0,
-                    ), // Điều chỉnh padding nội dung
-                    // TODO: Thêm icon mặt cười, mic nếu cần
-                    // prefixIcon: IconButton(icon: Icon(Icons.emoji_emotions_outlined), onPressed: (){}),
-                  ),
-                  onSubmitted:
-                      (value) => _sendMessage(), // Gửi khi nhấn Enter/Return
-                  textInputAction:
-                      TextInputAction.send, // Đổi nút return thành Send
-                  minLines: 1,
-                  maxLines: 5, // Cho phép nhập nhiều dòng
-                ),
-              ),
-            ),
-            const SizedBox(width: 8.0),
-            // Nút đính kèm (tùy chọn)
-            IconButton(
-              icon: Transform.rotate(
-                // Xoay icon giấy
-                angle: math.pi / 5,
-                child: const Icon(Icons.attachment_outlined),
-              ),
-              onPressed: () {
-                // TODO: Xử lý đính kèm file
-                print('Attach file pressed');
-              },
-              color: Colors.grey[600],
-            ),
-
-            // Nút gửi
-            Material(
-              // Dùng Material để tạo hiệu ứng splash trên nền tròn
-              color: Colors.teal[400], // Màu nền nút gửi
-              borderRadius: BorderRadius.circular(25.0),
-              child: InkWell(
-                onTap: _sendMessage,
-                borderRadius: BorderRadius.circular(25.0),
-                child: const Padding(
-                  padding: EdgeInsets.all(12.0),
-                  child: Icon(Icons.send, color: Colors.white, size: 20.0),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      // Không cần BottomNavigationBar ở đây vì nó được push lên trên stack
     );
   }
 }

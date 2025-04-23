@@ -10,6 +10,7 @@ import 'package:app/screens/image_search_result_screen.dart';
 // import 'package:app/screens/general_chat_screen.dart';
 // import 'package:app/screens/settings_screen.dart';
 import 'package:app/screens/chatbot_screen.dart';
+import 'package:app/screens/settings_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({Key? key}) : super(key: key);
@@ -243,8 +244,12 @@ class _CameraScreenState extends State<CameraScreen> {
         );
         break;
       case 4: // Settings
-        print('Navigate to Settings Screen');
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SettingsScreen()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const SettingsScreen(),
+          ), // Điều hướng đến SettingsScreen
+        );
         break;
     }
   }

@@ -5,6 +5,7 @@ import 'package:app/screens/project_detail_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
 import 'package:app/screens/camera_screen.dart'; // <<< Thêm import này
 import 'package:app/screens/chatbot_screen.dart';
+import 'package:app/screens/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -50,8 +51,12 @@ class _HomeScreenState extends State<HomeScreen> {
         );
         break;
       case 4: // Settings
-        print('Navigate to Settings Screen');
-        // Navigator.push(context, MaterialPageRoute(builder: (context) => SettingsScreen()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const SettingsScreen(),
+          ), // Điều hướng đến SettingsScreen
+        );
         break;
     }
   }
