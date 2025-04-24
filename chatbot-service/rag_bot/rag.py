@@ -10,6 +10,7 @@ from rag_bot.model.reranker import ReRanker
 from rag_bot.utils.llm import GeminiLLM
 from dotenv import load_dotenv
 import os
+from rag_bot.utils.prompt import SYSTEM_PROMPT
 
 class CustomQAChain:
     """Custom QA chain using HybridSearch for retrieval"""
@@ -18,21 +19,12 @@ class CustomQAChain:
         self.hybrid_search = hybrid_search
         self.llm = llm
         self.memory = memory
-        
-        self.qa_prompt = PromptTemplate.from_template(
-            """Answer the question using only the following context and chat history.
-            If you don't know the answer, say "I don't know".
-            
-            Chat History:
-            {chat_history}
-            
-            Context:
-            {context}
-            
-            Question: {question}
-            Answer:"""
+
+        self.system_prompt = PromptTemplate.from_template(
+            SYSTEM_PROMPT
         )
-        self.llm_chain = LLMChain(llm=llm, prompt=self.qa_prompt, verbose=True)
+        
+        self.llm_chain = LLMChain(llm=llm, prompt=self.system_prompt, verbose=True)
 
     def __call__(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         # Retrieve relevant documents
@@ -65,22 +57,54 @@ class RAGPipeline:
     def __init__(self, hybrid_search: HybridSearch, llm):
         self.hybrid_search = hybrid_search
         self.llm = llm
+        self.sessions = {}
+
+    def create_session(self, session_id: str):
+        """Create a new session for the RAG pipeline"""
+        if session_id in self.sessions:
+            raise ValueError(f"Session {session_id} already exists.")
         
-        # Initialize memory
-        self.memory = ConversationSummaryBufferMemory(
-            llm=llm,
+        memory = ConversationSummaryBufferMemory(
+            llm=self.llm,
+            max_token_limit=4096,
             memory_key="chat_history",
-            input_key="question",
-            output_key="answer",
             return_messages=True
         )
-        
-        # Create custom QA chain
-        self.qa_chain = CustomQAChain(
-            hybrid_search=hybrid_search,
-            llm=llm,
-            memory=self.memory
+
+        self.qa_prompt = PromptTemplate.from_template(
+            """Answer the question using only the following context and chat history.
+            If you don't know the answer, say "I don't know".
+            
+            Chat History:
+            {chat_history}
+            
+            Context:
+            {context}
+            
+            Question: {question}
+            Answer:"""
         )
+
+        qa_chain = CustomQAChain(
+            hybrid_search=self.hybrid_search,
+            llm=self.llm,
+            memory=memory
+        )
+
+        self.sessions[session_id] = {
+            "memory": memory,
+            "qa_chain": qa_chain
+        }
+
+    def reset_session(self, session_id: str) -> None:
+        """
+        Reset an existing session by clearing its memory.
+        """
+        if session_id not in self.sessions:
+            raise ValueError(f"Session with ID '{session_id}' does not exist.")
+        
+        # Clear the memory for the session
+        self.sessions[session_id]["memory"].clear()
 
     def generate_response(self, query: str) -> dict:
         """Execute the full RAG pipeline"""
