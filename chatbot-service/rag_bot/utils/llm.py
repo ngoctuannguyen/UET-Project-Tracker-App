@@ -1,5 +1,7 @@
 import google.generativeai as genai
 from typing import Optional, Generator
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 class GeminiLLM:
     """
@@ -16,63 +18,39 @@ class GeminiLLM:
             model_name: Name of the model to use (default: 'gemini-pro')
         """
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
+        self.model = ChatGoogleGenerativeAI(model=model_name,
+                                            streaming=True,
+                                            callbacks=[StreamingStdOutCallbackHandler()],
+                                            temperature=0.5,
+                                            max_output_tokens=512,
+                                            api_key=api_key)
+        
         self.chat_session = None  # For chat conversations
+    def get_llm(self) -> ChatGoogleGenerativeAI:
+        """Get the LLM instance"""
+        return self.model
 
-    def generate_response(self, prompt: str, **kwargs) -> str:
-        """
-        Generate a single response from the model
-        
-        Args:
-            prompt: Input text prompt
-            **kwargs: Additional parameters (temperature, max_tokens, etc.)
-            
-        Returns:
-            Generated text response
-        """
-        try:
-            response = self.model.generate_content(prompt, **kwargs)
-            return response.text
-        except Exception as e:
-            return f"Error generating response: {str(e)}"
-
-    def start_chat(self, history: Optional[list] = None):
-        """Initialize a chat session with optional history"""
-        self.chat_session = self.model.start_chat(history=history or [])
-
+    def start_chat(self):   
+        """Start a chat session"""
+        self.chat_session = self.model.start_chat()
+        return self.chat_session
+    
     def chat(self, message: str) -> str:
-        """
-        Continue a chat conversation
+        """Send a message to the chat session and get a response"""
+        if self.chat_session is None:
+            raise ValueError("Chat session not started. Call start_chat() first.")
         
-        Args:
-            message: User's message
-            
-        Returns:
-            Model's response
-        """
-        if not self.chat_session:
-            self.start_chat()
-            
         response = self.chat_session.send_message(message)
         return response.text
-
-    def generate_stream(self, prompt: str, **kwargs) -> Generator[str, None, None]:
-        """
-        Stream response from the model token by token
-        
-        Args:
-            prompt: Input text prompt
-            **kwargs: Additional parameters
-            
-        Yields:
-            Response chunks as they're generated
-        """
-        try:
-            response = self.model.generate_content(prompt, stream=True, **kwargs)
-            for chunk in response:
-                yield chunk.text
-        except Exception as e:
-            yield f"Error in streaming: {str(e)}"
+    
+    def generate_response(self, prompt: str) -> str:
+        """Generate a response from the LLM"""
+        return self.model.generate_text(prompt)
+    
+    def generate_stream(self, prompt: str) -> Generator[str, None, None]:
+        """Generate a response from the LLM in a streaming manner"""
+        return self.model.generate_text(prompt, as_stream=True)
+    
 
 # Example usage
 if __name__ == "__main__":

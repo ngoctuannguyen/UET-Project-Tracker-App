@@ -10,9 +10,11 @@ from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from qdrant_client import models
 from qdrant_client.models import SparseVectorParams, SparseVectorsConfig
 from functools import lru_cache
+from fastembed import SparseTextEmbedding
+
 
 class QdrantVectorStore:
-    def __init__(self, collection_name: str, embeddings = None):
+    def __init__(self, collection_name: str, embeddings = None, sparse_embeddings: SparseTextEmbedding = None):
         """
         Initialize the Qdrant vector store.
         :param embeddings: Embedding function to generate vector representations.
@@ -24,21 +26,14 @@ class QdrantVectorStore:
         self.url = os.environ.get("QDRANT_CLIENT_URL")
         api_key = os.environ.get("QDRANT_API_KEY")
         self.embeddings = embeddings
+        self.sparse_embeddings = sparse_embeddings
         self.collection_name = collection_name
-        self.client = QdrantClient(url=self.url, api_key=api_key)
+        self.client = QdrantClient(url=self.url, api_key=api_key, timeout=60)  # Use gRPC for better performance
         # self.client = QdrantClient("http://localhost:6333")  # Use gRPC for better performance
         self.embedding_dimension = len(self.embeddings.embed_query("test"))
         # Ensure the collection exists
         if not self.client.collection_exists(self.collection_name):
             self._create_collection()
-
-        # Initialize Qdrant vector store
-        self.store = Qdrant(
-            client=self.client,
-            collection_name=self.collection_name,
-            embeddings=self.embeddings
-        )
-
     
     def _create_collection(self):
         """Create collection if it doesn't exist"""
@@ -62,7 +57,7 @@ class QdrantVectorStore:
                 sparse_vectors_config={
                     "bm42": SparseVectorParams(
                         modifier=models.Modifier.IDF
-                        )
+                    )
                 }
         )
 
@@ -78,34 +73,83 @@ class QdrantVectorStore:
         Add documents to the Qdrant vector store.
         :param documents: List of LangChain Document objects.
         """
-        self.store.add_documents(documents)
+        points = []
 
-    def get_retriever(self, score_threshold: float, k: int, timeout: int = 20, limit: int = 10) -> Qdrant:
-        """
-        Return a retriever for the Qdrant vector store.
-        :param score_threshold: Minimum similarity score for retrieval.
-        :param k: Number of top results to return.
-        :return: Qdrant retriever.
-        """
-        return self.store.as_retriever(
-            search_type="similarity_score_threshold",
-            search_kwargs={"score_threshold": score_threshold, "k": k},  # Set timeout and limit
+        for i, doc in enumerate(documents):
+            # Dense embedding
+            dense_vec = self.embeddings.embed_query(doc.page_content)
+
+            # print(dense_vec)
+
+            # Sparse embedding (BM42)
+            sparse = list(self.sparse_embeddings.embed([doc.page_content]))[0]
+            sparse_vec = models.SparseVector(
+                values=sparse.values.tolist(),
+                indices=sparse.indices.tolist(),
+            )
+
+            # Build point
+            points.append(
+                models.PointStruct(
+                    id=i,
+                    vector={
+                        "dense": dense_vec,
+                        "bm42": sparse_vec,
+                    },
+                    payload={
+                        "text": doc.page_content,
+                        "source": doc.metadata.get("source", "unknown"),
+                    },
+                )
+            )
+
+        # Upsert to Qdrant
+        self.client.upsert(
+            collection_name=self.collection_name,
+            points=points,
         )
-    
-    def get_relevant_documents(self, query: str, score_threshold: float = 0.5, k: int = 3) -> List[Document]:
-        """
-        Retrieve relevant documents using the Qdrant retriever.
-        :param query: Query string to search for.
-        :param score_threshold: Minimum similarity score for retrieval.
-        :param k: Number of top results to return.
-        :return: List of relevant documents.
-        """
-        # Get the retriever
-        retriever = self.get_retriever(score_threshold=score_threshold, k=k)
 
-        # Use the retriever to get relevant documents
-        documents = retriever.get_relevant_documents(query)
-        return documents
+
+    # def get_relevant_documents(self, query: str, score_threshold: float = 0.5, k: int = 3) -> List[Document]:
+    #     """
+    #     Retrieve relevant documents using the Qdrant retriever.
+    #     :param query: Query string to search for.
+    #     :param score_threshold: Minimum similarity score for retrieval.
+    #     :param k: Number of top results to return.
+    #     :return: List of relevant documents.
+    #     """
+
+    #     query_vector = self.embeddings.embed_query(query)
+    #     sparse_query = self.sparse_embeddings.embed([query])[0]
+
+    #     # Get the retriever
+    #     retriever = self.client.get_retriever(
+    #         collection_name=self.collection_name,
+    #         query_vector=query_vector,
+    #         distance=Distance.COSINE,
+    #         limit=k,
+    #         score_threshold=score_threshold,
+    #         with_payload=True,
+    #     )
+
+    #     # Perform the search
+    #     results = retriever.query(
+    #         query_vector=query_vector,
+    #         distance=Distance.COSINE,
+    #         limit=k,
+    #         score_threshold=score_threshold,
+    #     )
+
+    #     # Extract the document number, score, and text from the payload of each scored point
+    #     documents = [
+    #         Document(
+    #             page_content=result.payload["text"],
+    #             metadata={"source": result.payload.get("source", "unknown")}
+    #         )
+    #         for result in results.points
+    #     ]
+
+    #     return documents
 
 
 if __name__ == "__main__":
