@@ -1,0 +1,2 @@
+D:/UET-Project-Tracker-App/frontend/frontendMobile/app/android/app/.cxx/Debug/4o2624s3/x86_64/CMakeFiles/edit_cache.dir
+D:/UET-Project-Tracker-App/frontend/frontendMobile/app/android/app/.cxx/Debug/4o2624s3/x86_64/CMakeFiles/rebuild_cache.dir
