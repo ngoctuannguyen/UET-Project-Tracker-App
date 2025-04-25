@@ -1,5 +1,6 @@
 import os
 from langchain_community.document_loaders import PyPDFLoader
+from rag_bot.vector_database.qdrant import QdrantVectorStore
 # from langchain.text_splitter import MarkdownHeaderTextSplitter
 # from rag_bot.utils.data_loader.semantic_chunking import SemanticChunking
 # from langchain_community.embeddings import HuggingFaceBgeEmbeddings
@@ -237,8 +238,11 @@ def agentic_chunk_folder(folder_path: str) -> List[Document]:
         all_chunks.extend(chunks)
     return all_chunks
 
-def load_document_into_qdrant(documents):
-    pass
+def get_client():
+    return QdrantVectorStore().get_client()
+
+def load_document_into_qdrant(documents, qdrant_client, collection_name="my_collection"):
+    qdrant_client.add_documents(documents)
 
 if __name__ == "__main__":
     folder = "C:/Chat-App"  # thư mục chứa PDF/DOCX
