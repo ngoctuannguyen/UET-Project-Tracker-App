@@ -88,7 +88,6 @@ const scanAndReport = async (req, res) => {
     
     const barcode = scanResult;
     const reportResult = submitReport(barcode, reportText);
-        
     res.status(200).json({
       success: true,
       message: 'Barcode scanned and report submitted successfully',
@@ -117,6 +116,9 @@ const deleteReportOfProduct = async (req, res) => {
   try {
     const { productId } = req.params;
     const result = await deleteReportbyProductId(productId);
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.message });
+    }
     return res.status(200).json({ success: true, message: 'Reports for product deleted successfully' });
   }  
    catch (error) {
@@ -125,6 +127,24 @@ const deleteReportOfProduct = async (req, res) => {
   }
 };
 
+const submitReportNormal = async (req, res) => {
+  const { barcode, reportText } = req.body;
+  
+  if (!barcode || !reportText) {
+    return res.status(400).json({ success: false, message: 'Barcode and report text are required' });
+  }
+  
+  try {
+    const result = await submitReport(barcode, reportText);
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.message });
+    }
+    res.status(200).json({ success: true, message: 'Report submitted successfully', report: result.report });
+  } catch (error) {
+    console.error('Error submitting report:', error);
+    res.status(500).json({ success: false, message: 'Server error submitting the report' });
+  }
+};
 
 module.exports = {
   getReportsById,
@@ -133,5 +153,6 @@ module.exports = {
   scanAndReport,
   deleteOneReport,
   deleteReportOfProduct,
+  submitReportNormal,
   upload
 };

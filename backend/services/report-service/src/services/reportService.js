@@ -1,12 +1,13 @@
 
 const barcodeService = require('./scanBarcode');
-const { Report, Product, Employee } = require('../models');
+const { Report, Product, Employee,Component } = require('../models');
+const product = require('../models/product');
 
 
-const getReportsByProductId = async (productId) => {
+const getReportsByProductId = async (productCode) => {
   try {
     const reports = await Report.findAll({
-      where: { productId },
+      where: { productCode },
     });
     return reports;
   } catch (error) {
@@ -54,23 +55,37 @@ const deleteReportbyProductId = async (productId) => {
 }
 // Gửi báo cáo
 //TODO: Thêm thông tin Employee vào báo cáo
-async function submitReport( productCode, content) {
+async function submitReport(componentCode, content) {
+  let flag = 0;
   try {
-    // // Tìm Employee theo employeeCode
-    // const employee = await Employee.findOne({ where: { employeeCode } });
-    // if (!employee) return { success: false, message: 'Employee not found' };
+    // Tìm Component theo componentCode
+    const component = await Component.findOne({ where: { componentCode } });
+    if (!component) return { success: false, message: 'Component not found' };
 
-    // Tìm Product theo productCode
-    const product = await Product.findOne({ where: { productCode } });
-    if (!product) return { success: false, message: 'Product not found' };
-
-    // Tạo báo cáo
+    // Kiểm tra xem Component đã có Report trước đó chưa
+    const existingReport = await Report.findOne({ where: { componentCode } });
+    if (existingReport) {
+      flag = 1;
+    }
+    let productCode = component.productCode;
+    // Tạo báo cáo mới
     const newReport = await Report.create({
       content,
       employeeId: 1,
-      productId: product.id,
+      componentCode: component.componentCode,
+      productCode: component.productCode,
     });
+    
+    if (flag === 0) {
+      const product = await Product.findOne({ where: { productCode } });
+      if (!product) return { success: false, message: 'Product not found' };
+      await Product.update(
+        { currentProgress: product.currentProgress + component.progress },
+        { where: { productCode } }
+      );
+    }
 
+    // Cập nhật currentProgress trong Product
     return {
       success: true,
       report: newReport

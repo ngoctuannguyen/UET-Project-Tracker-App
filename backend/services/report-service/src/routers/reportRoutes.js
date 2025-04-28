@@ -9,4 +9,5 @@ router.post('/scan', reportController.upload.single('image'), reportController.s
 router.post('/scan-and-report', reportController.upload.single('image'), reportController.scanAndReport);
 router.delete('/reports/:reportId', reportController.deleteOneReport);
 router.delete('/reports/product/:productId', reportController.deleteReportOfProduct);
+router.post('/submit-report', reportController.submitReportNormal);
 module.exports = router;

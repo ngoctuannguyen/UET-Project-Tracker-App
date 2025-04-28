@@ -6,6 +6,10 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
         primaryKey: true
       },
+      componentCode: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       content: {
         type: DataTypes.TEXT,
         allowNull: false
