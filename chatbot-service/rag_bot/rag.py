@@ -37,17 +37,17 @@ class CustomQAChain:
         context = "\n".join([doc.page_content for doc in docs])
         
         # Generate answer
-        response = self.llm_chain.run(
-            question=inputs["question"],
-            context=context,
-            chat_history=chat_history
-        )
+        response = self.llm_chain.invoke({
+            "question": inputs["question"],
+            "context": context,
+            "chat_history": chat_history
+        })
         
         # Save to memory
-        self.memory.save_context(
-            {"question": inputs["question"]},
-            {"answer": response}
-        )
+        # self.memory.save_context(
+        #     {"question": inputs["question"]},
+        #     {"answer": response}
+        # )
         
         return {"answer": response, "sources": [doc.metadata for doc in docs]}
 
@@ -58,6 +58,7 @@ class RAGPipeline:
         self.hybrid_search = hybrid_search
         self.llm = llm
         self.sessions = {}
+        self.create_session("1")
 
     def create_session(self, session_id: str):
         """Create a new session for the RAG pipeline"""
@@ -66,26 +67,12 @@ class RAGPipeline:
         
         memory = ConversationSummaryBufferMemory(
             llm=self.llm,
-            max_token_limit=4096,
+            max_token_limit=1024,
             memory_key="chat_history",
             return_messages=True
         )
 
-        self.qa_prompt = PromptTemplate.from_template(
-            """Answer the question using only the following context and chat history.
-            If you don't know the answer, say "I don't know".
-            
-            Chat History:
-            {chat_history}
-            
-            Context:
-            {context}
-            
-            Question: {question}
-            Answer:"""
-        )
-
-        qa_chain = CustomQAChain(
+        self.qa_chain = CustomQAChain(
             hybrid_search=self.hybrid_search,
             llm=self.llm,
             memory=memory
@@ -93,7 +80,7 @@ class RAGPipeline:
 
         self.sessions[session_id] = {
             "memory": memory,
-            "qa_chain": qa_chain
+            "qa_chain": self.qa_chain
         }
 
     def reset_session(self, session_id: str) -> None:
@@ -117,18 +104,18 @@ class RAGPipeline:
 # Usage Example
 if __name__ == "__main__":
 
-    documents = [
-        Document(page_content="Quantum computing is a type of computation that uses quantum bits (qubits).", metadata={"source": "doc1"}),
-        Document(page_content="Classical computers use bits, which can be either 0 or 1.", metadata={"source": "doc2"}),
-        Document(page_content="Quantum computers can perform certain calculations much faster than classical computers.", metadata={"source": "doc3"})
-    ]
+    # documents = [
+    #     Document(page_content="Quantum computing is a type of computation that uses quantum bits (qubits).", metadata={"source": "doc1"}),
+    #     Document(page_content="Classical computers use bits, which can be either 0 or 1.", metadata={"source": "doc2"}),
+    #     Document(page_content="Quantum computers can perform certain calculations much faster than classical computers.", metadata={"source": "doc3"})
+    # ]
 
     # Load documents into Qdrant
     # Initialize components
     embedding_model = Embedding().get_embeddings()
     sparse_model = Embedding().get_sparse_embeddings()
     qdrant_store = QdrantVectorStore("my_collection", embedding_model, sparse_model)
-    qdrant_store.add_documents(documents)
+    # qdrant_store.add_documents(documents)
     qdrant_client = qdrant_store.get_client()
     reranker = ReRanker().get_reranker()
     hybrid_search = HybridSearch(
@@ -146,6 +133,6 @@ if __name__ == "__main__":
     rag_pipeline = RAGPipeline(hybrid_search, llm)
     
     # Query the pipeline
-    response = rag_pipeline.generate_response("What is quantum computing?")
-    print("Answer:", response["answer"])
-    print("Sources:", response["sources"])
+    response = rag_pipeline.generate_response("Trong trường hợp lắp đặt điện thoại cửa ở khu vực có giông bão thường xuyên, cần tuân thủ những biện pháp an toàn nào để tránh hư hỏng thiết bị?")
+    print(response["answer"]["text"])
+    # print("Sources:", response["sources"])

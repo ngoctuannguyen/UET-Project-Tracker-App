@@ -22,7 +22,7 @@ class GeminiLLM:
                                             streaming=True,
                                             callbacks=[StreamingStdOutCallbackHandler()],
                                             temperature=0.5,
-                                            max_output_tokens=512,
+                                            max_output_tokens=1024,
                                             api_key=api_key)
         
         self.chat_session = None  # For chat conversations

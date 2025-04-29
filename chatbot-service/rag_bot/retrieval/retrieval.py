@@ -70,6 +70,7 @@ class HybridSearch():
             ],
             query_filter=metadata_filter,
             query=models.FusionQuery(fusion=models.Fusion.RRF),
+            limit=10
         )
         
         # Extract the document number, score, and text from the payload of each scored point
@@ -87,7 +88,7 @@ class HybridSearch():
         ranked_documents = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True)
 
         # Select the top 2 documents
-        top_documents = [Document(page_content=doc.page_content, metadata=doc.metadata) for doc, score in ranked_documents[:2]]
+        top_documents = [Document(page_content=doc.page_content, metadata=doc.metadata) for doc, score in ranked_documents[:6]]
 
         return top_documents
 
