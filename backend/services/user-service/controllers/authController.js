@@ -6,6 +6,10 @@ const dotenv = require("dotenv"); // Import dotenv để đọc biến môi trư
 
 dotenv.config();
 
+// !!! THÊM DÒNG NÀY ĐỂ KIỂM TRA - NHỚ XÓA SAU KHI DEBUG !!!
+console.log("EMAIL_PASS loaded:", process.env.EMAIL_PASS);
+// !!! ------------------------------------------------- !!!
+
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
   port: parseInt(process.env.EMAIL_PORT || "587", 10), // Chuyển port sang số
