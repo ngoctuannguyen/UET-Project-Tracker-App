@@ -1,5 +1,6 @@
 const { Project } = require('../model/model'); // Điều chỉnh đường dẫn theo project của bạn
 const { validationResult } = require('express-validator');
+const { sendMessage } = require("../kafka/kafka_producer");
 
 const projectController = {
   // Tạo project mới
@@ -7,6 +8,12 @@ const projectController = {
     try {
       const projectData = req.body;
       const newProject = await Project.create(projectData);
+
+      await sendMessage("project", {
+        event: "PROJECT_CREATED",
+        data: newProject
+      })
+
       res.status(201).json(newProject);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -40,6 +47,12 @@ const projectController = {
         req.params.projectId,
         req.body
       );
+
+      await sendMessage("project", {
+        event: "PROJECT_UPDATED",
+        data: updatedProject
+      });
+
       res.status(200).json(updatedProject);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -53,6 +66,11 @@ const projectController = {
             req.params.taskId,
             req.body
         );
+
+        await sendMessage("project", {
+            event: "PROJECT_TASK_UPDATED",
+            data: updatedProject
+        })
         res.status(200).json(updatedProject);
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -63,6 +81,12 @@ const projectController = {
   deleteProject: async (req, res) => {
     try {
       await Project.delete(req.params.projectId);
+
+      await sendMessage("project", {
+        event: "PROJECT_DELETED",
+        data: {projectId: req.params.projectId}
+      })
+
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: error.message });
@@ -76,6 +100,12 @@ const projectController = {
         req.params.projectId,
         req.body.employeeId
       );
+
+      await sendMessage("project", {
+        event: "PROJECT_EMPLOYEE_ADDED",
+        data: updatedProject
+      });
+
       res.status(200).json(updatedProject);
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -89,13 +119,13 @@ const projectController = {
         req.params.projectId,
         req.params.employeeId
       );
+
       res.status(200).json(updatedProject);
     } catch (error) {
       res.status(400).json({ message: error.message });
     }
   },
 
-  // Các hàm khác (getByLeader, getByStatus, getByDeadline...)
   getProjectsByLeader: async (req, res) => {
     try {
       const projects = await Project.getByLeader(req.params.leaderId);
