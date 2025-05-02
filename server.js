@@ -1,8 +1,7 @@
 const express = require('express');
 const http = require('http');
 const routes = require('./routes/route');
-const { connectProducer } = require("./kafka/kafka_producer");
-const { connectConsumer, subscribeToTopic } = require("./kafka/kafka_consumer");
+const { RabbitMQService } = require('./rabbitmq/rabbitmq');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,13 +12,9 @@ app.use('/api', routes);
 const PORT = process.env.PORT || 3001;
 
 try {
-  await connectProducer();
-  await connectConsumer();
-  await subscribeToTopic("project", (message) => {
-    console.log('Processing message:', message);
-  });
+  RabbitMQService.connect();
 } catch (error) {
-  console.error('Error connecting to Kafka:', error);
+  console.error('Error connecting to RabbitMQ:', error);
 }
 
 server.listen(PORT, () => {
