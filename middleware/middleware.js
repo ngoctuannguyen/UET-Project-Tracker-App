@@ -2,38 +2,102 @@ const { db, project_service } = require('../services/service');
 const admin = require('firebase-admin');
 
 const ProjectMiddleware = {
-    // Project Validation Middleware
-    validateProjectData: (req, res, next) => {
+    validateProjectData: async (req, res, next) => {
         const requiredFields = [
             'project_name',
             'project_leader',
             'project_due',
             'client',
-            'project_task'
+            'employee_list'
         ];
-
+    
+        // Check required fields
         const missingFields = requiredFields.filter(field => !req.body[field]);
         if (missingFields.length > 0) {
             return res.status(400).json({
                 error: `Missing required fields: ${missingFields.join(', ')}`
             });
         }
-
-        // Date validation
+    
+        // Validate employee_list structure
+        if (!Array.isArray(req.body.employee_list)) {
+            return res.status(400).json({ error: "Employee list must be an array" });
+        }
+    
+        if (req.body.employee_list.length === 0) {
+            return res.status(400).json({ error: "Employee list cannot be empty" });
+        }
+    
+        // Validate all employees exist in the system
         try {
-            if (req.body.project_due) {
-                new Date(req.body.project_due);
-            }
-            if (req.body.project_task) {
-                req.body.project_task.forEach(task => {
-                    new Date(task.start_date);
-                    new Date(task.deadline);
+            const usersCollection = admin.firestore().collection('users');
+            const employees = req.body.employee_list;
+            
+            // Check if all employees exist
+            const employeesExist = await Promise.all(
+                employees.map(async (employeeId) => {
+                    const doc = await usersCollection.doc(employeeId).get();
+                    return doc.exists;
+                })
+            );
+    
+            const invalidEmployees = employees.filter((_, index) => !employeesExist[index]);
+            
+            if (invalidEmployees.length > 0) {
+                return res.status(400).json({
+                    error: `Invalid employees found: ${invalidEmployees.join(', ')}`
                 });
             }
         } catch (error) {
-            return res.status(400).json({ error: 'Invalid date format' });
+            console.error('Employee validation error:', error);
+            return res.status(500).json({ error: 'Error validating employees' });
         }
-
+    
+        // Validate project tasks if present
+        if (req.body.project_task) {
+            if (!Array.isArray(req.body.project_task)) {
+                return res.status(400).json({ error: 'project_task must be an array' });
+            }
+    
+            for (const task of req.body.project_task) {
+                const taskRequiredFields = ['start_date', 'deadline'];
+                const taskMissingFields = taskRequiredFields.filter(field => !task[field]);
+                
+                if (taskMissingFields.length > 0) {
+                    return res.status(400).json({
+                        error: `Missing required fields in project_task: ${taskMissingFields.join(', ')}`
+                    });
+                }
+    
+                // Validate task dates
+                try {
+                    new Date(task.start_date);
+                    new Date(task.deadline);
+                } catch (error) {
+                    return res.status(400).json({ error: 'Invalid date format in task' });
+                }
+    
+                // Validate assigned employee (if specified)
+                if (task.employeeId) {
+                    if (!req.body.employee_list.includes(task.employeeId)) {
+                        return res.status(400).json({
+                            error: `Task employee ${task.employeeId} not in project team`
+                        });
+                    }
+                }
+            }
+        }
+    
+        // Validate project due date
+        try {
+            const dueDate = new Date(req.body.project_due);
+            if (isNaN(dueDate.getTime())) {
+                return res.status(400).json({ error: 'Invalid project due date format' });
+            }
+        } catch (error) {
+            return res.status(400).json({ error: 'Invalid project due date format' });
+        }
+    
         next();
     },
 
@@ -83,7 +147,7 @@ const ProjectMiddleware = {
     validateEmployee: async (req, res, next) => {
         try {
             const employeeId = req.body.employeeId || req.params.employeeId;
-            const userRef = admin.firestore().collection('users').doc(employeeId);
+            const userRef = admin.firestore().collection('users_service').doc(employeeId);
             const userDoc = await userRef.get();
 
             if (!userDoc.exists) {
@@ -98,22 +162,68 @@ const ProjectMiddleware = {
         }
     },
 
-    // Task Validation Middleware
-    validateTaskData: (req, res, next) => {
+    checkEmployeeInProject: async (req, res, next) => {
+        try {
+            const projectId = req.params.projectId;
+            const employeeId = req.params.employeeId || req.body.employeeId;
+            
+            if (!projectId || !employeeId) {
+                return res.status(400).json({ error: 'Missing project ID or employee ID' });
+            }
+
+            const projectRef = project_service.doc(projectId);
+            const projectDoc = await projectRef.get();
+
+            if (!projectDoc.exists) {
+                return res.status(404).json({ error: 'Project not found' });
+            }
+
+            const projectData = projectDoc.data();
+            
+            if (!projectData.employee_list || !Array.isArray(projectData.employee_list)) {
+                return res.status(400).json({ error: 'Invalid employee list in project' });
+            }
+
+            if (!projectData.employee_list.includes(employeeId)) {
+                return res.status(404).json({ error: 'Employee not found in this project' });
+            }
+
+            next();
+        } catch (error) {
+            console.error('Error checking employee in project:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    },
+
+    validateTaskData: async (req, res, next) => {
         const validStatuses = ['not started', 'in progress', 'completed'];
         const taskData = req.body;
 
+        // Validate task status
         if (taskData.status && !validStatuses.includes(taskData.status)) {
             return res.status(400).json({
                 error: `Invalid status. Valid values are: ${validStatuses.join(', ')}`
             });
         }
 
+        // Validate dates
         try {
-            if (taskData.deadline) new Date(taskData.deadline);
-            if (taskData.start_date) new Date(taskData.start_date);
+            if (taskData.deadline) {
+                const deadline = new Date(taskData.deadline);
+                if (isNaN(deadline)) throw new Error('Invalid deadline date');
+            }
+            if (taskData.start_date) {
+                const startDate = new Date(taskData.start_date);
+                if (isNaN(startDate)) throw new Error('Invalid start date');
+            }
         } catch (error) {
-            return res.status(400).json({ error: 'Invalid date format' });
+            return res.status(400).json({ error: error.message });
+        }
+
+        // Check if assigned employee exists in project
+        if (taskData.employeeId) {
+            // Use the checkEmployeeInProject middleware
+            return ProjectMiddleware.checkEmployeeInProject(req, res, next);
         }
 
         next();
