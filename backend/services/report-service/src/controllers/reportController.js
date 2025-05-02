@@ -1,7 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const {getReportsByProductId, submitReport, scanBarcodeFromImage, getAllReports,deleteReport,deleteReportbyProductId } = require('../services/reportService');
+const {getReportsByProductId, submitReport, scanBarcodeFromImage, getAllReports,deleteReport,deleteReportbyProductId, deleteReportbyComponentId, getReportsByComponentId } = require('../services/reportService');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -20,17 +20,12 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 
-// Get all reports
-const getReports = (req, res) => {
-  const reports = getAllReports();
-  res.json({ success: true, reports });
-};
 
 const getReportsById = async (req, res) => {
   try {
-    const { productId } = req.params;
+    const { componentCode } = req.params;
 
-    const reports = await getReportsByProductId(productId);
+    const reports = await getReportsByComponentId(componentCode);
 
     if (!reports.length) {
       return res.status(404).json({ message: 'No reports found for this product' });
@@ -112,10 +107,10 @@ const deleteOneReport = async (req, res) => {
   }
 };
 
-const deleteReportOfProduct = async (req, res) => {
+const deleteReportOfComponent = async (req, res) => {
   try {
-    const { productId } = req.params;
-    const result = await deleteReportbyProductId(productId);
+    const { componentCode } = req.params;
+    const result = await deleteReportbyComponentId(componentCode );
     if (!result.success) {
       return res.status(400).json({ success: false, message: result.message });
     }
@@ -148,11 +143,10 @@ const submitReportNormal = async (req, res) => {
 
 module.exports = {
   getReportsById,
-  getReports,
   scanBarcode,
   scanAndReport,
   deleteOneReport,
-  deleteReportOfProduct,
+  deleteReportOfComponent,
   submitReportNormal,
   upload
 };

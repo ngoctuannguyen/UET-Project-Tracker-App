@@ -1,3 +1,5 @@
+const product = require("./product");
+
 module.exports = (sequelize, DataTypes) => {
     const Component = sequelize.define('Component', {
       componentCode: { 
@@ -10,9 +12,17 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false
       },
-      progress: {
-        type: DataTypes.INTEGER,
-        allowNull: false
+      is_completed: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
+      },
+      productCode: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        references: {
+          model: 'products',
+          key: 'productCode'
+        }
       },
     }, {
       tableName: 'components',

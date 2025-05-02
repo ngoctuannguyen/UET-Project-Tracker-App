@@ -4,10 +4,10 @@ const { Report, Product, Employee,Component } = require('../models');
 const product = require('../models/product');
 
 
-const getReportsByProductId = async (productCode) => {
+const getReportsByComponentId = async (componentCode) => {
   try {
     const reports = await Report.findAll({
-      where: { productCode },
+      where: {componentCode},
     });
     return reports;
   } catch (error) {
@@ -16,15 +16,6 @@ const getReportsByProductId = async (productCode) => {
   }
 };
 
-const getAllReports = async () => {
-  try {
-    const reports = await Report.findAll();
-    return reports;
-  } catch (error) {
-    console.error('Error fetching reports:', error);
-    throw new Error('Database error');
-  }
-}
 
 const deleteReport = async (reportId) => {
   try {
@@ -39,10 +30,10 @@ const deleteReport = async (reportId) => {
   }
 }
 
-const deleteReportbyProductId = async (productId) => {
+const deleteReportbyComponentId = async (componentCode) => {
   try {
     const report = await Report.findAll({
-      where: { productId },
+      where: { componentCode },
     });
     if (!report) return { success: false, message: 'Report not found' };
 
@@ -55,35 +46,19 @@ const deleteReportbyProductId = async (productId) => {
 }
 // Gửi báo cáo
 //TODO: Thêm thông tin Employee vào báo cáo
-async function submitReport(componentCode, content) {
-  let flag = 0;
+async function submitReport(componentCode, content,employeeId=1) {
   try {
     // Tìm Component theo componentCode
     const component = await Component.findOne({ where: { componentCode } });
     if (!component) return { success: false, message: 'Component not found' };
 
-    // Kiểm tra xem Component đã có Report trước đó chưa
-    const existingReport = await Report.findOne({ where: { componentCode } });
-    if (existingReport) {
-      flag = 1;
-    }
-    let productCode = component.productCode;
     // Tạo báo cáo mới
     const newReport = await Report.create({
       content,
-      employeeId: 1,
+      employeeId,
       componentCode: component.componentCode,
-      productCode: component.productCode,
     });
-    
-    if (flag === 0) {
-      const product = await Product.findOne({ where: { productCode } });
-      if (!product) return { success: false, message: 'Product not found' };
-      await Product.update(
-        { currentProgress: product.currentProgress + component.progress },
-        { where: { productCode } }
-      );
-    }
+  
 
     // Cập nhật currentProgress trong Product
     return {
@@ -108,4 +83,4 @@ const scanBarcodeFromImage = async (imagePath) => {
   }
 };
 
-module.exports = {submitReport, scanBarcodeFromImage,getReportsByProductId,getAllReports,deleteReport,deleteReportbyProductId};
+module.exports = {submitReport, scanBarcodeFromImage,getReportsByComponentId,deleteReport, deleteReportbyComponentId };
