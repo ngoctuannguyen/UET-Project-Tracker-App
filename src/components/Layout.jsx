@@ -2,8 +2,6 @@
 import React, { useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
-import ChatWindowGroup from "@/components/ChatWindow-group";
-import ChatWindowAI from "@/components/ChatWindow-AIchat";
 import { Outlet } from "react-router-dom";
 
 const Layout = () => {

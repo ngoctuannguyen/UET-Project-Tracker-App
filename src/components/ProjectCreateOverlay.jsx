@@ -1,6 +1,6 @@
-// components/ProjectCreateOverlay.jsx
 import React, { useState } from "react";
 import { X } from "lucide-react";
+import { toast } from "sonner";
 
 const ProjectCreateOverlay = ({ visible, onClose }) => {
   const [formData, setFormData] = useState({
@@ -20,12 +20,19 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log("New Project Created:", formData);
-    onClose(); // Đóng form sau khi tạo
+    toast.success("Project created successfully!");
+    setFormData({
+      name: "",
+      client: "",
+      leader: "",
+      description: "",
+    }); // Xóa các giá trị sau khi tạo thành công
+    onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur flex items-center justify-center z-50">
-      <div className="bg-[#e7eaf5] w-[500px] rounded-2xl p-8 relative">
+      <div className="bg-white rounded-2xl p-8 w-full max-w-lg shadow-lg relative">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-black hover:text-red-500"

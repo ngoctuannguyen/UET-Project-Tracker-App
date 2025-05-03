@@ -6,7 +6,6 @@ import ProjectsTable from "@/components/ProjectsTable";
 import ProjectCreateOverlay from "@/components/ProjectCreateOverlay";
 import { projects as sampleProjects } from "@/data/sampleProjects"; // ✅ import đúng
 
-
 const ProjectManagementPage = () => {
   const [createVisible, setCreateVisible] = useState(false);
   const navigate = useNavigate();
@@ -15,36 +14,22 @@ const ProjectManagementPage = () => {
     navigate(`/project/${projectId}`); // Điều hướng đến trang chi tiết dự án
   };
 
-  const processedProjects = sampleProjects.map((project) => {
-    const totalTasks = project.tasks.length;
-    const completedTasks = project.tasks.filter((t) => t.status === "done").length;
-    const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  // Sử dụng trực tiếp các trường từ sampleProjects
+  const processedProjects = sampleProjects.map((project) => ({
+    id: project.id,
+    name: project.name,
+    lead: project.leader,
+    progress: project.progress,
+    status: project.status,
+    dueDate: project.dueDate,
+  }));
 
-    let status = "Not Start";
-    if (completedTasks === 0) {
-      status = "Not Start";
-    } else if (completedTasks === totalTasks) {
-      status = "Completed";
-    } else {
-      status = "In Progress";
-    }
-
-    return {
-      id: project.id,
-      name: project.name,
-      lead: project.leader,
-      progress: progress,
-      status: status,
-      dueDate: "06 Jan 2024", // Có thể thay đổi để tính toán deadline
-    };
-  });
-
-    // Tính toán số lượng dự án theo trạng thái
-    const sampleStats = {
-      complete: processedProjects.filter((project) => project.status === "Completed").length,
-      inProgress: processedProjects.filter((project) => project.status === "In Progress").length,
-      notStart: processedProjects.filter((project) => project.status === "Not Start").length,
-    };
+  // Tính toán số lượng dự án theo trạng thái
+  const sampleStats = {
+    complete: processedProjects.filter((project) => project.status === "Completed").length,
+    inProgress: processedProjects.filter((project) => project.status === "In Progress").length,
+    notStart: processedProjects.filter((project) => project.status === "Not Started" || project.status === "Not Start").length,
+  };
 
   return (
     <main>
