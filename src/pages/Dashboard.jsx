@@ -27,30 +27,16 @@ const Dashboard = () => {
     return () => window.removeEventListener("resize", updateColumns); // Dọn dẹp sự kiện
   }, []);
 
-  // Tính toán Progress và Status
-  const processedProjects = sampleProjects.map((project) => {
-    const totalTasks = project.tasks.length;
-    const completedTasks = project.tasks.filter((t) => t.status === "done").length;
-    const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-    let status = "Not Start";
-    if (completedTasks === 0) {
-      status = "Not Start";
-    } else if (completedTasks === totalTasks) {
-      status = "Completed";
-    } else {
-      status = "In Progress";
-    }
-
-    return {
-      ...project,
-      progress,
-      status,
-    };
-  });
+  // Sử dụng trực tiếp progress và status từ sampleProjects
+  const processedProjects = sampleProjects.map((project) => ({
+    ...project,
+    // Đảm bảo các trường này luôn có trong sampleProjects
+    progress: project.progress,
+    status: project.status,
+  }));
 
   const filteredProjects = processedProjects.filter((project) => {
-    if (tab === "not-start") return project.status === "Not Start";
+    if (tab === "not-start") return project.status === "Not Started" || project.status === "Not Start";
     if (tab === "inprogress") return project.status === "In Progress";
     if (tab === "completed") return project.status === "Completed";
     return true;
@@ -89,8 +75,8 @@ const Dashboard = () => {
             key={project.id}
             title={"Project " + project.id}
             subtitle={project.name}
-            date={"Due date: " + project.tasks[0]?.dueDate} // Hiển thị ngày đầu tiên
-            onClick={() => navigate(`/project/${project.id}`)} // 👉 Điều hướng tới chi tiết project
+            date={"Due date: " + project.dueDate}
+            onClick={() => navigate(`/project/${project.id}`)}
           />
         ))}
       </div>

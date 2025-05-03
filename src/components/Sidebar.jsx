@@ -1,9 +1,16 @@
 import React from "react";
 import { User, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const Sidebar = () => {
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    toast.success("Logged out");
+    navigate("/login");
+  };
 
   return (
     <aside className="w-64 bg-gradient-to-b from-[#4e00c2] to-[#6e56cf] text-white p-6 flex flex-col justify-between">
@@ -22,8 +29,10 @@ const Sidebar = () => {
           </nav>
         </div>
       </div>
-      <div className="flex justify-left">
-        <LogOut className="w-8 h-8 cursor-pointer" />
+      {/* Log out */}
+      <div className="flex items-center space-x-2 cursor-pointer hover:underline" onClick={handleLogout}>
+        <LogOut className="w-6 h-6" />
+        <span className="text-lg">Logout</span>
       </div>
     </aside>
   );
