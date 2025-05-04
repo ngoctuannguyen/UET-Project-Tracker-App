@@ -1,3 +1,4 @@
+// filepath: d:\UET-Project-Tracker-App\frontend\frontendMobile\app\lib\screens\camera_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
@@ -5,15 +6,16 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' show join;
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
-// <<< THAY ĐỔI IMPORT: Trỏ đến màn hình kết quả tìm kiếm >>>
 import 'package:app/screens/image_search_result_screen.dart';
-// import 'package:app/screens/general_chat_screen.dart';
-// import 'package:app/screens/settings_screen.dart';
 import 'package:app/screens/chatbot_screen.dart';
 import 'package:app/screens/settings_screen.dart';
+import 'package:app/models/user_model.dart'; // <<< THÊM: Import UserModel
 
 class CameraScreen extends StatefulWidget {
-  const CameraScreen({Key? key}) : super(key: key);
+  // <<< THÊM: Nhận currentUser (có thể null nếu không bắt buộc) >>>
+  final UserModel? currentUser;
+
+  const CameraScreen({Key? key, this.currentUser}) : super(key: key);
 
   @override
   State<CameraScreen> createState() => _CameraScreenState();
@@ -24,17 +26,21 @@ class _CameraScreenState extends State<CameraScreen> {
   List<CameraDescription>? _cameras;
   CameraDescription? _frontCamera;
   CameraDescription? _backCamera;
-  bool _isUsingFrontCamera = true; // Mặc định dùng camera trước
+  bool _isUsingFrontCamera = true;
   Future<void>? _initializeControllerFuture;
-  int _selectedIndex = 2; // Index của tab Camera là 2
+  int _selectedIndex = 2;
 
   @override
   void initState() {
     super.initState();
     _initializeCamera();
+    // In ra để kiểm tra currentUser có được truyền vào không
+    print(
+      'CameraScreen initState: currentUser is ${widget.currentUser?.fullName}',
+    );
   }
 
-  // Helper function to find a camera by lens direction
+  // ... (Các hàm _findCamera, _initializeCamera, _initCameraController giữ nguyên) ...
   CameraDescription? _findCamera(
     List<CameraDescription>? cameras,
     CameraLensDirection direction,
@@ -43,7 +49,6 @@ class _CameraScreenState extends State<CameraScreen> {
     try {
       return cameras.firstWhere((camera) => camera.lensDirection == direction);
     } catch (e) {
-      // firstWhere throws StateError if no element is found
       return null;
     }
   }
@@ -51,12 +56,8 @@ class _CameraScreenState extends State<CameraScreen> {
   Future<void> _initializeCamera() async {
     try {
       _cameras = await availableCameras();
-
-      // Tìm camera trước và sau using the helper method
       _frontCamera = _findCamera(_cameras, CameraLensDirection.front);
       _backCamera = _findCamera(_cameras, CameraLensDirection.back);
-
-      // Ưu tiên dùng camera trước nếu có, không thì dùng camera sau
       CameraDescription? initialCamera = _frontCamera ?? _backCamera;
       _isUsingFrontCamera = (initialCamera == _frontCamera);
 
@@ -64,7 +65,6 @@ class _CameraScreenState extends State<CameraScreen> {
         await _initCameraController(initialCamera);
       } else {
         print("Không tìm thấy camera nào.");
-        // Xử lý trường hợp không có camera (ví dụ: hiển thị thông báo)
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -100,7 +100,6 @@ class _CameraScreenState extends State<CameraScreen> {
       if (mounted) setState(() {});
       if (_controller!.value.hasError) {
         print('Lỗi Camera: ${_controller!.value.errorDescription}');
-        // Hiển thị lỗi cho người dùng nếu cần
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -143,7 +142,6 @@ class _CameraScreenState extends State<CameraScreen> {
     super.dispose();
   }
 
-  // <<< HÀM NÀY ĐÃ ĐƯỢC CẬP NHẬT ĐIỀU HƯỚNG >>>
   Future<void> _takePicture() async {
     if (_controller == null || !_controller!.value.isInitialized) {
       print('Lỗi: Controller chưa sẵn sàng.');
@@ -155,24 +153,25 @@ class _CameraScreenState extends State<CameraScreen> {
       return;
     }
     if (_controller!.value.isTakingPicture) {
-      return; // Tránh chụp nhiều ảnh cùng lúc
+      return;
     }
 
     try {
-      await _initializeControllerFuture; // Đảm bảo khởi tạo xong
+      await _initializeControllerFuture;
 
       XFile imageFile = await _controller!.takePicture();
       print('Ảnh đã được chụp: ${imageFile.path}');
 
-      // <<< THAY ĐỔI ĐIỀU HƯỚNG: Sang ImageSearchResultScreen >>>
       if (mounted) {
-        // Kiểm tra mounted trước khi điều hướng
         Navigator.push(
           context,
           MaterialPageRoute(
-            // Sử dụng ImageSearchResultScreen thay vì ReportScreen
+            // <<< SỬA: Truyền currentUser sang ImageSearchResultScreen nếu cần >>>
             builder:
-                (context) => ImageSearchResultScreen(imagePath: imageFile.path),
+                (context) => ImageSearchResultScreen(
+                  imagePath: imageFile.path,
+                  currentUser: widget.currentUser, // Truyền currentUser
+                ),
           ),
         );
       }
@@ -211,44 +210,67 @@ class _CameraScreenState extends State<CameraScreen> {
         _isUsingFrontCamera ? _backCamera! : _frontCamera!;
     setState(() {
       _isUsingFrontCamera = !_isUsingFrontCamera;
-      _initializeControllerFuture = null; // Hiển thị loading khi chuyển
+      _initializeControllerFuture = null;
     });
     await _initCameraController(newCamera);
   }
 
   void _onItemTapped(int index) {
-    if (_selectedIndex == index) return;
+    if (_selectedIndex == index || widget.currentUser == null) {
+      // Không điều hướng nếu nhấn tab hiện tại hoặc currentUser là null
+      if (widget.currentUser == null) {
+        print(
+          "Lỗi: currentUser là null, không thể điều hướng từ CameraScreen.",
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Lỗi thông tin người dùng, không thể chuyển màn hình.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
-    // Không cần setState vì dùng pushReplacement
+    // <<< SỬA: Truyền widget.currentUser! (đã kiểm tra null) >>>
     switch (index) {
       case 0: // Home
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(currentUser: widget.currentUser!),
+          ),
         );
         break;
       case 1: // Nhóm
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const FriendsListScreen()),
+          MaterialPageRoute(
+            builder:
+                (context) =>
+                    FriendsListScreen(currentUser: widget.currentUser!),
+          ),
         );
         break;
       case 2: // Camera (đang ở đây)
-        break; // Không làm gì vì đang ở màn hình Camera
+        break;
       case 3: // Chat Bot
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const ChatbotScreen(),
-          ), // Điều hướng đến ChatbotScreen
+            builder:
+                (context) => ChatbotScreen(currentUser: widget.currentUser!),
+          ),
         );
         break;
       case 4: // Settings
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const SettingsScreen(),
-          ), // Điều hướng đến SettingsScreen
+            builder:
+                (context) => SettingsScreen(currentUser: widget.currentUser!),
+          ),
         );
         break;
     }
@@ -262,6 +284,7 @@ class _CameraScreenState extends State<CameraScreen> {
       appBar: AppBar(
         title: const Text('Chụp ảnh báo cáo'),
         backgroundColor: Colors.blueAccent,
+        automaticallyImplyLeading: false, // Ẩn nút back mặc định
         actions: [
           if (canSwitchCamera)
             IconButton(
@@ -276,7 +299,6 @@ class _CameraScreenState extends State<CameraScreen> {
       body: FutureBuilder<void>(
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
-          // Kiểm tra lỗi trong snapshot trước
           if (snapshot.hasError) {
             print("Lỗi FutureBuilder: ${snapshot.error}");
             return Center(
@@ -284,9 +306,7 @@ class _CameraScreenState extends State<CameraScreen> {
             );
           }
 
-          // Kiểm tra trạng thái kết nối
           if (snapshot.connectionState == ConnectionState.done) {
-            // Kiểm tra controller và giá trị của nó sau khi future done
             if (_controller != null && _controller!.value.isInitialized) {
               return Stack(
                 alignment: Alignment.bottomCenter,
@@ -300,22 +320,21 @@ class _CameraScreenState extends State<CameraScreen> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 30.0),
                     child: FloatingActionButton(
-                      onPressed: _takePicture, // Gọi hàm đã cập nhật
+                      onPressed: _takePicture,
                       child: const Icon(Icons.camera_alt),
                     ),
                   ),
                 ],
               );
             } else {
-              // Trường hợp future done nhưng controller không hợp lệ
               return const Center(
                 child: Text(
                   'Không thể khởi tạo camera. Vui lòng kiểm tra quyền truy cập.',
+                  textAlign: TextAlign.center,
                 ),
               );
             }
           } else {
-            // Hiển thị loading khi đang chờ future hoàn thành
             return const Center(child: CircularProgressIndicator());
           }
         },
@@ -338,10 +357,9 @@ class _CameraScreenState extends State<CameraScreen> {
             label: 'Camera',
           ),
           BottomNavigationBarItem(
-            // <<< THAY ĐỔI ICON >>>
-            icon: Icon(Icons.smart_toy_outlined), // Icon chatbot chưa chọn
-            activeIcon: Icon(Icons.smart_toy), // Icon chatbot đã chọn
-            label: 'Chatbot', // Đổi label nếu muốn
+            icon: Icon(Icons.smart_toy_outlined),
+            activeIcon: Icon(Icons.smart_toy),
+            label: 'Chatbot',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),
@@ -350,7 +368,7 @@ class _CameraScreenState extends State<CameraScreen> {
           ),
         ],
         currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+        onTap: _onItemTapped, // <<< SỬA: Gọi hàm đã cập nhật >>>
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,

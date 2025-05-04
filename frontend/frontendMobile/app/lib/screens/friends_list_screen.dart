@@ -3,16 +3,17 @@ import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/camera_screen.dart';
 import 'package:app/screens/chatbot_screen.dart';
 import 'package:app/screens/settings_screen.dart';
-import 'package:app/screens/chat_screen.dart'; // Import màn hình chat
+import 'package:app/screens/chat_screen.dart';
+import 'package:app/models/user_model.dart'; // <<< THÊM: Import UserModel
 
-// Định nghĩa một class để chứa thông tin nhóm chat
+// Lớp tạm thời cho thông tin nhóm chat
 class GroupChatInfo {
   final String id;
   final String name;
-  final List<String> members;
+  final List<String> members; // Tạm thời giữ kiểu String
   final String lastMessage;
   final String time;
-  final IconData icon; // Icon đại diện cho nhóm
+  final IconData icon;
 
   GroupChatInfo({
     required this.id,
@@ -20,49 +21,65 @@ class GroupChatInfo {
     required this.members,
     this.lastMessage = "",
     this.time = "",
-    this.icon = Icons.group_work, // Icon mặc định
+    this.icon = Icons.group_work,
   });
 }
 
 class FriendsListScreen extends StatefulWidget {
-  const FriendsListScreen({Key? key}) : super(key: key);
+  // <<< THÊM: Nhận currentUser (bắt buộc vì cần cho ChatScreen) >>>
+  final UserModel currentUser;
+
+  const FriendsListScreen({Key? key, required this.currentUser})
+    : super(key: key);
 
   @override
   State<FriendsListScreen> createState() => _FriendsListScreenState();
 }
 
 class _FriendsListScreenState extends State<FriendsListScreen> {
-  int _selectedIndex = 1; // Index của tab Nhóm là 1
+  int _selectedIndex = 1;
 
-  // <<< THAY ĐỔI DỮ LIỆU: Danh sách các nhóm chat >>>
+  // TODO: Thay thế list cứng này bằng việc gọi API/Firestore
   final List<GroupChatInfo> groupChats = [
     GroupChatInfo(
-      id: 'du_an_a',
+      id: 'du_an_a', // ID group thực tế
       name: 'Dự án A',
-      members: ['Alice', 'Bob', 'Charlie', 'Bạn'], // Danh sách thành viên mẫu
+      members: ['Alice', 'Bob', 'Charlie', 'Bạn'],
       lastMessage: 'Họp vào lúc 3h chiều nay nhé!',
       time: '10:30 AM',
-      icon: Icons.assignment, // Icon cho dự án A
+      icon: Icons.assignment,
     ),
     GroupChatInfo(
-      id: 'du_an_b',
+      id: 'du_an_b', // ID group thực tế
       name: 'Dự án B',
-      members: ['David', 'Eve', 'Bạn'], // Danh sách thành viên mẫu
+      members: ['David', 'Eve', 'Bạn'],
       lastMessage: 'File thiết kế đã được cập nhật.',
       time: '09:15 AM',
-      icon: Icons.design_services, // Icon cho dự án B
+      icon: Icons.design_services,
     ),
-    // Thêm các nhóm khác nếu cần
   ];
 
-  // Hàm điều hướng cho BottomNavigationBar
+  @override
+  void initState() {
+    super.initState();
+    print(
+      'FriendsListScreen initState: currentUser is ${widget.currentUser.fullName}',
+    );
+    // TODO: Gọi API/Firestore để load danh sách nhóm thực tế
+  }
+
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
+
+    // Điều hướng bằng pushReplacement
     switch (index) {
       case 0: // Home
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(currentUser: widget.currentUser),
+            settings: const RouteSettings(name: '/home'),
+          ),
         );
         break;
       case 1: // Nhóm (đang ở đây)
@@ -70,44 +87,55 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
       case 2: // Camera
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const CameraScreen()),
+          MaterialPageRoute(
+            builder: (context) => CameraScreen(currentUser: widget.currentUser),
+            settings: const RouteSettings(name: '/camera'),
+          ),
         );
         break;
       case 3: // Chat Bot
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ChatbotScreen()),
+          MaterialPageRoute(
+            builder:
+                (context) => ChatbotScreen(currentUser: widget.currentUser),
+            settings: const RouteSettings(name: '/chatbot'),
+          ),
         );
         break;
       case 4: // Settings
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const SettingsScreen()),
+          MaterialPageRoute(
+            builder:
+                (context) => SettingsScreen(currentUser: widget.currentUser),
+            settings: const RouteSettings(name: '/settings'),
+          ),
         );
         break;
     }
   }
 
-  // <<< THÊM HÀM: Hiển thị dialog danh sách thành viên >>>
+  // Hàm hiển thị dialog thành viên (tạm thời dùng list cứng)
   Future<void> _showGroupMembers(
     BuildContext context,
     GroupChatInfo group,
   ) async {
+    // TODO: Lấy danh sách thành viên thực tế từ API/Firestore dựa trên group.id
     return showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Thành viên nhóm "${group.name}"'),
           content: SizedBox(
-            // Giới hạn chiều cao của danh sách
             width: double.maxFinite,
-            height: 300, // Điều chỉnh chiều cao nếu cần
+            height: MediaQuery.of(context).size.height * 0.4,
             child: ListView.builder(
               shrinkWrap: true,
               itemCount: group.members.length,
               itemBuilder: (BuildContext context, int index) {
                 return ListTile(
-                  leading: const Icon(Icons.person),
+                  leading: const Icon(Icons.person_outline),
                   title: Text(group.members[index]),
                 );
               },
@@ -116,9 +144,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
           actions: <Widget>[
             TextButton(
               child: const Text('Đóng'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
             ),
           ],
         );
@@ -132,19 +158,15 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
       appBar: AppBar(
         title: const Text('Danh sách nhóm dự án'),
         backgroundColor: Colors.blueAccent,
-        automaticallyImplyLeading: false, // Ẩn nút back nếu không cần
+        automaticallyImplyLeading: false,
       ),
-      // <<< THAY ĐỔI BODY: Hiển thị danh sách nhóm >>>
       body: ListView.separated(
         itemCount: groupChats.length,
-        separatorBuilder:
-            (context, index) =>
-                const Divider(height: 0), // Đường kẻ giữa các item
+        separatorBuilder: (context, index) => const Divider(height: 0),
         itemBuilder: (context, index) {
           final group = groupChats[index];
           return ListTile(
             leading: CircleAvatar(
-              // Avatar cho nhóm
               child: Icon(group.icon),
               backgroundColor: Colors.grey[300],
             ),
@@ -158,44 +180,34 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
               overflow: TextOverflow.ellipsis,
             ),
             trailing: Row(
-              // Sử dụng Row để chứa thời gian và nút xem thành viên
-              mainAxisSize: MainAxisSize.min, // Giới hạn kích thước của Row
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   group.time,
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
-                const SizedBox(width: 8), // Khoảng cách nhỏ
+                const SizedBox(width: 8),
                 IconButton(
-                  // Nút xem thành viên
-                  icon: const Icon(Icons.group_outlined),
+                  icon: const Icon(Icons.info_outline),
                   tooltip: 'Xem thành viên',
-                  onPressed: () {
-                    _showGroupMembers(
-                      context,
-                      group,
-                    ); // Gọi hàm hiển thị dialog
-                  },
-                  constraints:
-                      const BoxConstraints(), // Bỏ padding mặc định của IconButton
+                  onPressed: () => _showGroupMembers(context, group),
+                  constraints: const BoxConstraints(),
                   padding: EdgeInsets.zero,
                 ),
               ],
             ),
             onTap: () {
-              // Điều hướng đến màn hình chat của nhóm
+              // <<< SỬA: Truyền widget.currentUser vào ChatScreen >>>
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder:
                       (context) => ChatScreen(
-                        // Truyền ID hoặc tên nhóm để ChatScreen biết đang chat với nhóm nào
-                        // Bạn cần cập nhật ChatScreen để nhận và xử lý tham số này
                         chatTargetId: group.id,
                         chatTargetName: group.name,
-                        isGroupChat:
-                            true, // Thêm cờ để phân biệt nhóm và cá nhân
+                        currentUser: widget.currentUser, // Truyền currentUser
                       ),
+                  settings: RouteSettings(name: '/chat/${group.id}'),
                 ),
               );
               print('Vào chat nhóm: ${group.name}');
@@ -203,7 +215,6 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
           );
         },
       ),
-      // BottomNavigationBar giữ nguyên
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -215,7 +226,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
             icon: Icon(Icons.group_outlined),
             activeIcon: Icon(Icons.group),
             label: 'Nhóm',
-          ), // Icon Nhóm
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.camera_alt_outlined),
             activeIcon: Icon(Icons.camera_alt),
@@ -238,8 +249,8 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
         selectedItemColor: Colors.blueAccent[700],
         unselectedItemColor: Colors.grey[600],
         backgroundColor: Colors.white,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
         elevation: 8.0,
       ),
     );

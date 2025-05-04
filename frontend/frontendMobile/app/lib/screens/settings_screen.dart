@@ -4,55 +4,126 @@ import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
 import 'package:app/screens/camera_screen.dart';
 import 'package:app/screens/chatbot_screen.dart';
-import 'package:app/screens/edit_profile_screen.dart'; // <<< IMPORT MÀN HÌNH EDIT MỚI >>>
-import 'package:app/screens/login_screen.dart'; // Import LoginScreen để đăng xuất
+import 'package:app/screens/edit_profile_screen.dart';
+import 'package:app/screens/login_screen.dart';
+import 'package:app/services/user_service.dart';
+import 'package:app/models/user_model.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  // <<< SỬA: Nhận UserModel >>>
+  final UserModel currentUser;
+
+  const SettingsScreen({Key? key, required this.currentUser}) : super(key: key);
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final int _selectedIndex = 4; // Index của tab Settings
+  final int _selectedIndex = 4;
+  final UserService _userService = UserService();
+  // <<< SỬA: Dùng state để lưu user, khởi tạo từ widget >>>
+  late UserModel _currentUserData;
+  bool _isLoading = false; // Chỉ loading khi refresh
 
-  // --- Dữ liệu người dùng (chỉ đọc) ---
-  // TODO: Lấy dữ liệu người dùng thực tế từ API hoặc state quản lý chung
-  final String _hoTen = "Nguyễn Văn A";
-  final String _maNhanVien = "NV001";
-  final String _ngaySinh = "01/01/1990";
-  final String _gioiTinh = "Nam";
-  final String _email = "a.nguyenvan@example.com";
-  final String _avatarUrl =
-      'https://via.placeholder.com/150'; // Ảnh placeholder
+  @override
+  void initState() {
+    super.initState();
+    // <<< SỬA: Khởi tạo state từ dữ liệu được truyền vào >>>
+    _currentUserData = widget.currentUser;
+    print(
+      'SettingsScreen initState: currentUser is ${_currentUserData.fullName}, docId: ${_currentUserData.docId}',
+    );
+  }
 
-  // Hàm điều hướng BottomNavigationBar (giữ nguyên)
+  // <<< SỬA: Hàm load lại dữ liệu (dùng cho RefreshIndicator) >>>
+  Future<void> _loadUserData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    // <<< SỬA: Load lại bằng Document ID để đảm bảo lấy đúng user >>>
+    UserModel? refreshedUser = await _userService.getUserByDocId(
+      _currentUserData.docId,
+    );
+
+    if (mounted) {
+      setState(() {
+        if (refreshedUser != null) {
+          _currentUserData = refreshedUser; // Cập nhật state nếu thành công
+          print(
+            'SettingsScreen refreshed: currentUser is ${_currentUserData.fullName}',
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không thể làm mới thông tin người dùng.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Hàm điều hướng BottomNavigationBar
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
+
+    // <<< SỬA: Truyền _currentUserData khi điều hướng >>>
     switch (index) {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          PageRouteBuilder(
+            pageBuilder:
+                (_, __, ___) => HomeScreen(currentUser: _currentUserData),
+            transitionsBuilder:
+                (_, a, __, c) => FadeTransition(opacity: a, child: c),
+            settings: const RouteSettings(name: '/home'), // Thêm tên route
+          ),
         );
         break;
       case 1:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const FriendsListScreen()),
+          PageRouteBuilder(
+            // <<< SỬA: Truyền _currentUserData >>>
+            pageBuilder:
+                (_, __, ___) =>
+                    FriendsListScreen(currentUser: _currentUserData),
+            transitionsBuilder:
+                (_, a, __, c) => FadeTransition(opacity: a, child: c),
+            settings: const RouteSettings(name: '/friends'), // Thêm tên route
+          ),
         );
         break;
       case 2:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const CameraScreen()),
+          PageRouteBuilder(
+            // <<< SỬA: Truyền _currentUserData >>>
+            pageBuilder:
+                (_, __, ___) => CameraScreen(currentUser: _currentUserData),
+            transitionsBuilder:
+                (_, a, __, c) => FadeTransition(opacity: a, child: c),
+            settings: const RouteSettings(name: '/camera'), // Thêm tên route
+          ),
         );
         break;
       case 3:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ChatbotScreen()),
+          PageRouteBuilder(
+            // <<< SỬA: Truyền _currentUserData >>>
+            pageBuilder:
+                (_, __, ___) => ChatbotScreen(currentUser: _currentUserData),
+            transitionsBuilder:
+                (_, a, __, c) => FadeTransition(opacity: a, child: c),
+            settings: const RouteSettings(name: '/chatbot'), // Thêm tên route
+          ),
         );
         break;
       case 4: // Đang ở Settings
@@ -60,7 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // Hàm xử lý đăng xuất (cập nhật để điều hướng về LoginScreen)
+  // Hàm xử lý đăng xuất (Giữ nguyên logic điều hướng, thêm TODO xóa token)
   void _logout() {
     showDialog(
       context: context,
@@ -78,19 +149,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Đăng xuất',
                 style: TextStyle(color: Colors.red),
               ),
-              onPressed: () {
-                Navigator.of(context).pop(); // Đóng dialog
-
+              onPressed: () async {
+                // Thêm async nếu cần await xóa token
+                Navigator.of(context).pop(); // Đóng dialog trước
                 // TODO: Xóa token đã lưu (nếu có)
-                // await storage.deleteAll();
+                // Ví dụ: await storage.delete(key: 'idToken');
+                // await storage.delete(key: 'refreshToken');
+                // await storage.delete(key: 'uid');
 
-                // Điều hướng về màn hình Login và xóa hết các màn hình cũ khỏi stack
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  (Route<dynamic> route) => false, // Xóa hết route cũ
-                );
-                print('Đã đăng xuất và quay về Login Screen!');
+                // Đảm bảo context vẫn còn hợp lệ trước khi điều hướng
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                      settings: const RouteSettings(
+                        name: '/login',
+                      ), // Tên route
+                    ),
+                    (Route<dynamic> route) => false,
+                  );
+                  print('Đã đăng xuất và quay về Login Screen!');
+                }
               },
             ),
           ],
@@ -99,17 +179,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Hàm build một trường thông tin chỉ đọc
+  // Hàm build một trường thông tin chỉ đọc (Giữ nguyên)
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: TextStyle(color: Colors.grey[700], fontSize: 15)),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value.isNotEmpty ? value : 'Chưa cập nhật',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              textAlign: TextAlign.right,
+              softWrap: true,
+            ),
           ),
         ],
       ),
@@ -118,130 +204,155 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // <<< SỬA: Lấy dữ liệu từ state _currentUserData >>>
+    final String displayName = _currentUserData.fullName;
+    final String displayUserId = _currentUserData.userId; // 'VNU1', 'VNU2'
+    final String displayBirthday = _currentUserData.birthdayFormatted;
+    final String displayGender = _currentUserData.gender ?? '';
+    final String displayEmail = _currentUserData.email;
+    final String avatarUrl = 'https://via.placeholder.com/150'; // Tạm thời
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Thông tin cá nhân'),
-        backgroundColor: Colors.teal, // Màu AppBar
-        automaticallyImplyLeading: false, // Không cần nút back ở đây
+        backgroundColor: Colors.teal,
+        automaticallyImplyLeading: false,
+        elevation: 1.0,
         actions: [
-          // <<< NÚT CHỈNH SỬA THÔNG TIN >>>
+          // Nút chỉnh sửa
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Chỉnh sửa thông tin',
             onPressed: () {
-              // Điều hướng đến màn hình EditProfileScreen
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const EditProfileScreen(),
-                ),
-              ).then((_) {
-                // TODO: Cập nhật lại thông tin trên màn hình này sau khi chỉnh sửa xong (nếu cần)
-                // Ví dụ: gọi lại API lấy thông tin user hoặc cập nhật state từ kết quả trả về
-                print("Quay lại từ màn hình chỉnh sửa");
-                // setState(() { /* Cập nhật dữ liệu nếu cần */ });
-              });
+              // <<< SỬA: Đảm bảo _currentUserData.docId không rỗng trước khi điều hướng >>>
+              if (_currentUserData.docId.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    // <<< SỬA: Truyền docId ('user1', 'user2') sang EditProfileScreen >>>
+                    builder:
+                        (context) =>
+                            EditProfileScreen(docId: _currentUserData.docId),
+                    settings: const RouteSettings(
+                      name: '/editProfile',
+                    ), // Tên route
+                  ),
+                ).then((result) {
+                  // Kiểm tra mounted trước khi gọi _loadUserData
+                  if (mounted && result == true) {
+                    // Nếu EditProfileScreen trả về true
+                    print("Reloading user data after edit...");
+                    _loadUserData(); // Load lại dữ liệu
+                  }
+                });
+              } else {
+                print("Lỗi: Không có docId để chỉnh sửa hồ sơ.");
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Lỗi: Không thể xác định người dùng.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
           ),
         ],
       ),
-      // <<< BODY HIỂN THỊ THÔNG TIN NGƯỜI DÙNG >>>
       body: Container(
         decoration: BoxDecoration(
-          // Gradient nền
           gradient: LinearGradient(
             colors: [Colors.teal[50]!, Colors.purple[50]!],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
-        child: ListView(
-          // Dùng ListView để nội dung dài có thể cuộn
-          padding: const EdgeInsets.all(20.0),
-          children: [
-            // Avatar
-            Center(
-              child: CircleAvatar(
-                radius: 55,
-                backgroundColor: Colors.white,
+        // <<< SỬA: Dùng RefreshIndicator và không cần check _isLoading ban đầu >>>
+        child: RefreshIndicator(
+          onRefresh: _loadUserData,
+          child: ListView(
+            padding: const EdgeInsets.all(20.0),
+            children: [
+              // Avatar
+              Center(
                 child: CircleAvatar(
-                  radius: 50,
-                  backgroundImage: NetworkImage(_avatarUrl),
-                  onBackgroundImageError: (_, __) {},
-                  child:
-                      _avatarUrl.isEmpty
-                          ? const Icon(
-                            Icons.person,
-                            size: 50,
-                            color: Colors.grey,
-                          )
-                          : null,
+                  radius: 55,
+                  backgroundColor: Colors.white,
+                  child: CircleAvatar(
+                    radius: 50,
+                    backgroundImage: NetworkImage(avatarUrl),
+                    onBackgroundImageError: (_, __) {
+                      print("Error loading avatar image.");
+                    },
+                    child:
+                        avatarUrl.isEmpty || avatarUrl.contains('placeholder')
+                            ? const Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Colors.grey,
+                            )
+                            : null,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 25),
-
-            // Thông tin chi tiết
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 15.0,
-                vertical: 20.0,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(15.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
+              const SizedBox(height: 30),
+              // Thông tin chi tiết trong Card
+              Card(
+                elevation: 4.0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15.0),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20.0,
+                    vertical: 25.0,
                   ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  _buildInfoRow('Họ và tên', _hoTen),
-                  const Divider(),
-                  _buildInfoRow('Mã nhân viên', _maNhanVien),
-                  const Divider(),
-                  _buildInfoRow('Ngày sinh', _ngaySinh),
-                  const Divider(),
-                  _buildInfoRow('Giới tính', _gioiTinh),
-                  const Divider(),
-                  _buildInfoRow('Email', _email),
-                ],
-              ),
-            ),
-            const SizedBox(height: 40), // Khoảng cách trước nút đăng xuất
-            // <<< NÚT ĐĂNG XUẤT >>>
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20.0,
-              ), // Thêm padding ngang
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.logout, color: Colors.white),
-                label: const Text('Đăng xuất'),
-                onPressed: _logout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent, // Màu đỏ cho nút đăng xuất
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  child: Column(
+                    children: [
+                      _buildInfoRow('Họ và tên', displayName),
+                      const Divider(height: 20),
+                      _buildInfoRow(
+                        'Mã người dùng',
+                        displayUserId,
+                      ), // Hiển thị 'VNU1', 'VNU2'
+                      const Divider(height: 20),
+                      _buildInfoRow('Ngày sinh', displayBirthday),
+                      const Divider(height: 20),
+                      _buildInfoRow('Giới tính', displayGender),
+                      const Divider(height: 20),
+                      _buildInfoRow('Email', displayEmail),
+                    ],
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  elevation: 3,
                 ),
               ),
-            ),
-            const SizedBox(height: 20), // Khoảng cách dưới cùng
-          ],
+              const SizedBox(height: 40),
+              // Nút đăng xuất
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text('Đăng xuất'),
+                  onPressed: _logout,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
-      // BottomNavigationBar giữ nguyên
+      // BottomNavigationBar
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -273,12 +384,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blueAccent[700],
+        selectedItemColor: Colors.teal,
         unselectedItemColor: Colors.grey[600],
         backgroundColor: Colors.white,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
         elevation: 8.0,
+        // <<< THÊM: Hiển thị label để dễ debug >>>
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
       ),
     );
   }

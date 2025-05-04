@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
-import 'dart:async'; // Để dùng Timer giả lập tin nhắn
+import 'dart:async';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:app/models/user_model.dart'; // <<< THÊM: Import UserModel
+import 'package:intl/intl.dart'; // <<< THÊM: Import intl để định dạng thời gian
 
-// Định nghĩa cấu trúc tin nhắn (có thể mở rộng thêm userId, timestamp,...)
+// Định nghĩa cấu trúc tin nhắn
 class ChatMessage {
-  final String
-  senderId; // ID của người gửi ('user' cho người dùng hiện tại, hoặc ID khác)
-  final String senderName; // Tên người gửi (quan trọng cho group chat)
+  final String senderId;
+  final String senderName;
   final String text;
   final DateTime timestamp;
 
@@ -15,18 +19,51 @@ class ChatMessage {
     required this.text,
     required this.timestamp,
   });
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    DateTime parsedTimestamp;
+    try {
+      if (json['timestamp'] is Map) {
+        // Firestore Timestamp
+        parsedTimestamp = DateTime.fromMillisecondsSinceEpoch(
+          (json['timestamp']['_seconds'] * 1000 +
+                  json['timestamp']['_nanoseconds'] / 1000000)
+              .toInt(),
+        );
+      } else if (json['timestamp'] is String) {
+        // ISO 8601 String
+        parsedTimestamp =
+            DateTime.parse(
+              json['timestamp'],
+            ).toLocal(); // Chuyển sang giờ địa phương
+      } else {
+        // Fallback
+        parsedTimestamp = DateTime.now();
+      }
+    } catch (e) {
+      print("Error parsing timestamp: ${json['timestamp']} - $e");
+      parsedTimestamp = DateTime.now(); // Fallback nếu parse lỗi
+    }
+
+    return ChatMessage(
+      senderId: json['sender_id']?.toString() ?? 'unknown_sender',
+      senderName: json['sender_name']?.toString() ?? 'Unknown User',
+      text: json['text']?.toString() ?? '',
+      timestamp: parsedTimestamp,
+    );
+  }
 }
 
 class ChatScreen extends StatefulWidget {
-  final String chatTargetId; // ID của người nhận hoặc nhóm chat
-  final String chatTargetName; // Tên người nhận hoặc nhóm chat
-  final bool isGroupChat; // Cờ xác định đây là chat nhóm hay không
+  final String chatTargetId; // ID của nhóm chat
+  final String chatTargetName; // Tên nhóm chat
+  final UserModel currentUser; // <<< THÊM: Người dùng hiện tại
 
   const ChatScreen({
     Key? key,
     required this.chatTargetId,
     required this.chatTargetName,
-    this.isGroupChat = false,
+    required this.currentUser, // <<< THÊM: Yêu cầu currentUser
   }) : super(key: key);
 
   @override
@@ -36,153 +73,200 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<ChatMessage> _messages = []; // Danh sách tin nhắn
-  final String _currentUserId =
-      'user'; // ID người dùng hiện tại (cần thay bằng ID thực tế)
-  final String _currentUserName = 'Bạn'; // Tên người dùng hiện tại
+  final List<ChatMessage> _messages = [];
+
+  late IO.Socket socket;
+  List<Map<String, String>> _groupMembers = [];
+  bool _isLoadingMembers = false;
+  bool _isLoadingMessages = false;
+
+  // --- !!! QUAN TRỌNG: Thay đổi URL backend nếu cần !!! ---
+  // Sử dụng IP cục bộ nếu test trên điện thoại thật, ví dụ: 'http://192.168.1.7:3000'
+  final String backendUrl = 'http://localhost:3000';
+  // ---
 
   @override
   void initState() {
     super.initState();
-    // Tải tin nhắn cũ (giả lập)
+    print(
+      'ChatScreen initState for group ${widget.chatTargetId}, user: ${widget.currentUser.fullName}',
+    );
+    _connectSocket();
     _loadInitialMessages();
-    // Tự động cuộn xuống cuối khi có tin nhắn mới hoặc bàn phím hiện lên
-    // (Cần xử lý phức tạp hơn nếu muốn giữ vị trí cuộn)
   }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    socket.dispose();
     super.dispose();
   }
 
-  // Giả lập tải tin nhắn ban đầu
-  void _loadInitialMessages() {
-    // TODO: Thay thế bằng logic gọi API lấy lịch sử chat dựa trên widget.chatTargetId
-    setState(() {
-      _messages.addAll([
-        ChatMessage(
-          senderId: widget.isGroupChat ? 'Alice' : widget.chatTargetId,
-          senderName: widget.isGroupChat ? 'Alice' : widget.chatTargetName,
-          text: 'Chào bạn!',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-        ),
-        ChatMessage(
-          senderId: _currentUserId,
-          senderName: _currentUserName,
-          text: 'Chào!',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 4)),
-        ),
-        if (widget.isGroupChat)
-          ChatMessage(
-            senderId: 'Bob',
-            senderName: 'Bob',
-            text: 'Mọi người thấy sao về đề xuất mới?',
-            timestamp: DateTime.now().subtract(const Duration(minutes: 3)),
-          ),
-        ChatMessage(
-          senderId: widget.isGroupChat ? 'Alice' : widget.chatTargetId,
-          senderName: widget.isGroupChat ? 'Alice' : widget.chatTargetName,
-          text: 'Rất hay đó!',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
-        ),
-      ]);
+  void _connectSocket() {
+    socket = IO.io(backendUrl, <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': true,
     });
-    _scrollToBottom();
+
+    socket.onConnect((_) {
+      print('Socket connected: ${socket.id}');
+      socket.emit('join-group', widget.chatTargetId);
+    });
+
+    socket.on('new-message', (data) {
+      print('Received new message: $data');
+      if (mounted && data is Map<String, dynamic>) {
+        try {
+          final newMessage = ChatMessage.fromJson(data);
+          // Kiểm tra trùng lặp chặt chẽ hơn (nếu server trả về ID tin nhắn)
+          // if (!_messages.any((msg) => msg.id == newMessage.id)) {
+          if (!_messages.any(
+            (msg) =>
+                msg.text == newMessage.text &&
+                msg.senderId == newMessage.senderId &&
+                msg.timestamp.difference(newMessage.timestamp).inSeconds.abs() <
+                    2,
+          )) {
+            setState(() {
+              _messages.add(newMessage);
+              _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+            });
+            _scrollToBottom();
+          }
+        } catch (e) {
+          print("Error processing received message: $e");
+        }
+      }
+    });
+
+    socket.onDisconnect((_) => print('Socket disconnected'));
+    socket.onConnectError((data) => print('Socket connection error: $data'));
+    socket.onError((data) => print('Socket error: $data'));
   }
 
-  // Hàm gửi tin nhắn
+  Future<void> _loadInitialMessages() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingMessages = true;
+    });
+    final url = Uri.parse(
+      '$backendUrl/api/groups/${widget.chatTargetId}/messages',
+    );
+    try {
+      final response = await http.get(url);
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final List<dynamic> messagesJson = jsonDecode(response.body);
+        setState(() {
+          _messages.clear();
+          _messages.addAll(
+            messagesJson
+                .map(
+                  (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
+                )
+                .toList(),
+          );
+          _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        });
+        _scrollToBottom(instant: true);
+      } else {
+        print('Failed to load messages: ${response.statusCode}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải tin nhắn: ${response.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error loading messages: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải tin nhắn: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMessages = false;
+        });
+      }
+    }
+  }
+
   void _sendMessage() {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    final newMessage = ChatMessage(
-      senderId: _currentUserId,
-      senderName: _currentUserName, // Tên của người dùng hiện tại
-      text: text,
-      timestamp: DateTime.now(),
-    );
+    // <<< SỬA: Sử dụng thông tin từ widget.currentUser >>>
+    final messageData = {
+      'group_id': widget.chatTargetId,
+      'sender_id': widget.currentUser.docId, // Sử dụng docId từ UserModel
+      'sender_name':
+          widget.currentUser.fullName, // Sử dụng fullName từ UserModel
+      'text': text,
+    };
 
-    setState(() {
-      _messages.add(newMessage);
-    });
-
+    socket.emit('send-message', messageData);
     _messageController.clear();
-    _scrollToBottom(); // Cuộn xuống khi gửi
-
-    // TODO: Gửi tin nhắn lên server (API call)
-    print('Gửi tin nhắn: "$text" đến ${widget.chatTargetId}');
-
-    // Giả lập tin nhắn trả lời (cho demo)
-    if (!widget.isGroupChat) {
-      Timer(const Duration(seconds: 1), () {
-        if (mounted) {
-          // Kiểm tra widget còn tồn tại không
-          final replyMessage = ChatMessage(
-            senderId: widget.chatTargetId,
-            senderName: widget.chatTargetName,
-            text: 'Đã nhận: "$text"',
-            timestamp: DateTime.now(),
-          );
-          setState(() {
-            _messages.add(replyMessage);
-          });
-          _scrollToBottom();
-        }
-      });
-    } else {
-      // Trong group chat, tin nhắn mới sẽ được push từ server (không cần giả lập trả lời)
-    }
+    // Không cần cuộn ở đây, chờ tin nhắn mới từ server
   }
 
-  // Hàm cuộn xuống cuối danh sách tin nhắn
-  void _scrollToBottom() {
-    // Đảm bảo việc cuộn xảy ra sau khi frame đã được build xong
+  void _scrollToBottom({bool instant = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        if (instant) {
+          _scrollController.jumpTo(maxScroll);
+        } else {
+          _scrollController.animateTo(
+            maxScroll,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
       }
     });
   }
 
-  // Widget hiển thị một bong bóng tin nhắn
   Widget _buildMessageBubble(ChatMessage message) {
-    final isUserMessage = message.senderId == _currentUserId;
+    // <<< SỬA: Sử dụng widget.currentUser.docId để so sánh >>>
+    final isUserMessage = message.senderId == widget.currentUser.docId;
     final alignment =
         isUserMessage ? CrossAxisAlignment.end : CrossAxisAlignment.start;
-    final color = isUserMessage ? Colors.blue[400] : Colors.grey[300];
-    final textColor = isUserMessage ? Colors.white : Colors.black87;
+    final bubbleAlignment =
+        isUserMessage ? MainAxisAlignment.end : MainAxisAlignment.start;
+    final color = isUserMessage ? Colors.blueAccent[100] : Colors.grey[200];
+    final textColor = Colors.black87; // Giữ màu đen cho dễ đọc
+    final borderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(15.0),
+      topRight: const Radius.circular(15.0),
+      bottomLeft: Radius.circular(isUserMessage ? 15.0 : 0),
+      bottomRight: Radius.circular(isUserMessage ? 0 : 15.0),
+    );
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4.0),
+      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
       child: Column(
         crossAxisAlignment: alignment,
         children: [
-          // Hiển thị tên người gửi trong group chat (nếu không phải người dùng hiện tại)
-          if (widget.isGroupChat && !isUserMessage)
+          if (!isUserMessage)
             Padding(
-              padding: const EdgeInsets.only(
-                left: 15.0,
-                right: 15.0,
-                bottom: 2.0,
-              ),
+              padding: const EdgeInsets.only(left: 10.0, bottom: 2.0),
               child: Text(
                 message.senderName,
                 style: const TextStyle(fontSize: 12.0, color: Colors.grey),
               ),
             ),
-          // Bong bóng tin nhắn
           Row(
-            mainAxisAlignment:
-                isUserMessage ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisAlignment: bubbleAlignment,
             children: [
               ConstrainedBox(
-                // Giới hạn chiều rộng của bong bóng
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.of(context).size.width * 0.75,
                 ),
@@ -193,7 +277,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: color,
-                    borderRadius: BorderRadius.circular(15.0),
+                    borderRadius: borderRadius,
                   ),
                   child: Text(
                     message.text,
@@ -203,20 +287,23 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ],
           ),
-          // Hiển thị thời gian (có thể thêm vào dưới bong bóng)
-          // Padding(
-          //   padding: const EdgeInsets.only(top: 2.0, left: 15.0, right: 15.0),
-          //   child: Text(
-          //     DateFormat('HH:mm').format(message.timestamp), // Cần import 'package:intl/intl.dart';
-          //     style: TextStyle(fontSize: 10.0, color: Colors.grey),
-          //   ),
-          // ),
+          // Hiển thị thời gian dưới bong bóng
+          Padding(
+            padding: EdgeInsets.only(
+              top: 3.0,
+              left: isUserMessage ? 0 : 10.0,
+              right: isUserMessage ? 10.0 : 0,
+            ),
+            child: Text(
+              DateFormat('HH:mm').format(message.timestamp), // Định dạng HH:mm
+              style: const TextStyle(fontSize: 10.0, color: Colors.grey),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // Widget khu vực nhập liệu
   Widget _buildInputArea() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
@@ -231,19 +318,13 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       child: SafeArea(
-        // Đảm bảo không bị che bởi notch hoặc bottom bar hệ thống
         child: Row(
           children: [
-            // Có thể thêm nút đính kèm file ở đây
-            // IconButton(
-            //   icon: Icon(Icons.attach_file),
-            //   onPressed: () {},
-            // ),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14.0),
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
+                  color: Colors.grey[100],
                   borderRadius: BorderRadius.circular(25.0),
                 ),
                 child: TextField(
@@ -251,25 +332,24 @@ class _ChatScreenState extends State<ChatScreen> {
                   decoration: const InputDecoration(
                     hintText: 'Nhập tin nhắn...',
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(
-                      vertical: 10.0,
-                    ), // Điều chỉnh padding dọc
+                    contentPadding: EdgeInsets.symmetric(vertical: 10.0),
                   ),
                   textCapitalization: TextCapitalization.sentences,
                   minLines: 1,
-                  maxLines: 5, // Cho phép nhập nhiều dòng
+                  maxLines: 5,
                   onSubmitted: (_) => _sendMessage(),
+                  textInputAction: TextInputAction.send,
                 ),
               ),
             ),
             const SizedBox(width: 8.0),
-            // Nút gửi
             FloatingActionButton(
-              mini: true, // Kích thước nhỏ hơn
+              mini: true,
               onPressed: _sendMessage,
               child: const Icon(Icons.send),
               backgroundColor: Colors.blueAccent,
               elevation: 1.0,
+              tooltip: 'Gửi',
             ),
           ],
         ),
@@ -277,24 +357,106 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // Hàm hiển thị thông tin nhóm (ví dụ)
-  void _showGroupInfo() {
-    // Bạn có thể dùng lại dialog _showGroupMembers từ friends_list_screen
-    // hoặc tạo một dialog/màn hình mới hiển thị chi tiết hơn
+  Future<void> _fetchAndShowGroupMembers() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingMembers = true;
+    });
+    final url = Uri.parse(
+      '$backendUrl/api/groups/${widget.chatTargetId}/members',
+    );
+    try {
+      final response = await http.get(url);
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final List<dynamic> membersJson = jsonDecode(response.body);
+        setState(() {
+          // Giả sử backend trả về list các object có 'id' và 'name'
+          _groupMembers =
+              membersJson.map((memberData) {
+                if (memberData is Map<String, dynamic>) {
+                  return {
+                    'id': memberData['id']?.toString() ?? 'unknown_id',
+                    'name': memberData['name']?.toString() ?? 'Unknown User',
+                  };
+                }
+                return {'id': 'invalid_data', 'name': 'Invalid Data'};
+              }).toList();
+        });
+        _showGroupMembersDialog();
+      } else {
+        print('Failed to load members: ${response.statusCode}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Lỗi tải danh sách thành viên: ${response.statusCode}',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error loading members: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tải danh sách thành viên: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMembers = false;
+        });
+      }
+    }
+  }
+
+  void _showGroupMembersDialog() {
     showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Text('Nhóm "${widget.chatTargetName}"'),
-            content: const Text(
-              'Đây là nơi hiển thị danh sách thành viên và các tùy chọn khác của nhóm.',
-            ), // Placeholder
+            title: Text('Thành viên nhóm "${widget.chatTargetName}"'),
+            content:
+                _groupMembers.isEmpty
+                    ? const Text('Không tìm thấy thành viên nào.')
+                    : SizedBox(
+                      width: double.maxFinite,
+                      height: MediaQuery.of(context).size.height * 0.4,
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _groupMembers.length,
+                        itemBuilder: (context, index) {
+                          final member = _groupMembers[index];
+                          final memberName = member['name'] ?? 'Unknown User';
+                          final memberInitial =
+                              memberName.isNotEmpty
+                                  ? memberName[0].toUpperCase()
+                                  : '?';
+                          return ListTile(
+                            leading: CircleAvatar(
+                              child: Text(memberInitial),
+                              backgroundColor: Colors.grey[300],
+                            ),
+                            title: Text(memberName),
+                            // subtitle: Text('ID: ${member['id']}'), // Ẩn ID nếu không cần thiết
+                          );
+                        },
+                      ),
+                    ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Đóng'),
               ),
             ],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15.0),
+            ),
           ),
     );
   }
@@ -303,48 +465,57 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.chatTargetName), // Hiển thị tên người/nhóm chat
+        title: Text(widget.chatTargetName),
         backgroundColor: Colors.blueAccent,
-        elevation: 1.0, // Giảm shadow
+        elevation: 1.0,
         actions: [
-          // Hiển thị nút thông tin nếu là group chat
-          if (widget.isGroupChat)
-            IconButton(
-              icon: const Icon(Icons.info_outline),
-              tooltip: 'Thông tin nhóm',
-              onPressed: _showGroupInfo,
-            ),
-          // Có thể thêm các nút khác như gọi video/audio
-          // IconButton(
-          //   icon: Icon(Icons.videocam_outlined),
-          //   onPressed: () {},
-          // ),
+          _isLoadingMembers
+              ? const Padding(
+                padding: EdgeInsets.only(right: 15.0),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                ),
+              )
+              : IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Thông tin nhóm',
+                onPressed: _fetchAndShowGroupMembers,
+              ),
         ],
       ),
       body: Column(
         children: [
-          // Phần hiển thị tin nhắn
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              reverse:
-                  false, // Hiển thị từ trên xuống dưới, tin mới nhất ở cuối
-              padding: const EdgeInsets.symmetric(
-                vertical: 10.0,
-                horizontal: 8.0,
-              ),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                return _buildMessageBubble(message);
-              },
-            ),
+            child:
+                _isLoadingMessages
+                    ? const Center(child: CircularProgressIndicator())
+                    : (_messages.isEmpty
+                        ? const Center(
+                          child: Text(
+                            'Bắt đầu cuộc trò chuyện!',
+                            style: TextStyle(color: Colors.grey, fontSize: 16),
+                          ),
+                        )
+                        : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(vertical: 10.0),
+                          itemCount: _messages.length,
+                          itemBuilder: (context, index) {
+                            final message = _messages[index];
+                            return _buildMessageBubble(message);
+                          },
+                        )),
           ),
-          // Phần nhập liệu
           _buildInputArea(),
         ],
       ),
-      // Không cần BottomNavigationBar ở đây vì nó được push lên trên stack
     );
   }
 }

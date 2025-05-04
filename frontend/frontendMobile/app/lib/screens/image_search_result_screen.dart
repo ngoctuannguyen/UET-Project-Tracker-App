@@ -3,69 +3,149 @@ import 'package:flutter/material.dart';
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
 import 'package:app/screens/camera_screen.dart';
-import 'package:app/screens/report_screen.dart'; // <<< THÊM IMPORT NÀY
+import 'package:app/screens/report_screen.dart';
 import 'package:app/screens/chatbot_screen.dart';
 import 'package:app/screens/settings_screen.dart';
+import 'package:app/models/user_model.dart'; // <<< THÊM: Import UserModel
 
-// <<< ĐỔI TÊN CLASS >>>
 class ImageSearchResultScreen extends StatefulWidget {
   final String imagePath;
+  // <<< THÊM: Nhận currentUser (có thể null) >>>
+  final UserModel? currentUser;
 
-  const ImageSearchResultScreen({Key? key, required this.imagePath})
-    : super(key: key);
+  const ImageSearchResultScreen({
+    Key? key,
+    required this.imagePath,
+    this.currentUser, // Thêm vào constructor
+  }) : super(key: key);
 
   @override
-  // <<< ĐỔI TÊN STATE CLASS >>>
   State<ImageSearchResultScreen> createState() =>
       _ImageSearchResultScreenState();
 }
 
-// <<< ĐỔI TÊN STATE CLASS >>>
 class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
-  int _selectedIndex = 2; // Vẫn giữ index 2
+  int _selectedIndex = 2; // Index của Camera
+  String _searchResult = '(Chưa có kết quả)';
+  bool _isSearching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    print(
+      'ImageSearchResultScreen initState: currentUser is ${widget.currentUser?.fullName}',
+    );
+    _performImageSearch();
+  }
+
+  // Hàm gọi API tìm kiếm ảnh (giả lập)
+  Future<void> _performImageSearch() async {
+    if (!mounted) return;
+    setState(() {
+      _isSearching = true;
+      _searchResult = 'Đang tìm kiếm...';
+    });
+
+    try {
+      await Future.delayed(const Duration(seconds: 2)); // Giả lập độ trễ mạng
+      // TODO: Thay thế bằng logic gọi API thực tế
+      final result = "Tìm thấy đối tượng X tại vị trí Y"; // Kết quả giả lập
+      if (mounted) {
+        setState(() {
+          _searchResult = result;
+          _isSearching = false;
+        });
+      }
+    } catch (e) {
+      print("Lỗi khi tìm kiếm ảnh: $e");
+      if (mounted) {
+        setState(() {
+          _searchResult = 'Lỗi khi tìm kiếm: $e';
+          _isSearching = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi tìm kiếm ảnh: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
+    // Không có controller nào cần dispose trong ví dụ này
     super.dispose();
   }
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
 
+    // Kiểm tra currentUser trước khi điều hướng đến các màn hình yêu cầu đăng nhập
+    if (widget.currentUser == null && index != 2) {
+      print(
+        "Lỗi: currentUser là null, không thể điều hướng đến màn hình khác ngoài Camera.",
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lỗi thông tin người dùng, không thể chuyển màn hình.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Điều hướng bằng pushReplacement
     switch (index) {
       case 0: // Home
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(currentUser: widget.currentUser!),
+            settings: const RouteSettings(name: '/home'),
+          ),
         );
         break;
       case 1: // Nhóm
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const FriendsListScreen()),
+          MaterialPageRoute(
+            builder:
+                (context) =>
+                    FriendsListScreen(currentUser: widget.currentUser!),
+            settings: const RouteSettings(name: '/friends'),
+          ),
         );
         break;
       case 2: // Camera
-        // Quay lại màn hình chụp ảnh
+        // Quay lại màn hình Camera, truyền lại currentUser (có thể null)
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const CameraScreen()),
+          MaterialPageRoute(
+            builder: (context) => CameraScreen(currentUser: widget.currentUser),
+            settings: const RouteSettings(name: '/camera'),
+          ),
         );
         break;
       case 3: // Chat Bot
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const ChatbotScreen(),
-          ), // Điều hướng đến ChatbotScreen
+            builder:
+                (context) => ChatbotScreen(currentUser: widget.currentUser!),
+            settings: const RouteSettings(name: '/chatbot'),
+          ),
         );
         break;
       case 4: // Settings
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const SettingsScreen(),
-          ), // Điều hướng đến SettingsScreen
+            builder:
+                (context) => SettingsScreen(currentUser: widget.currentUser!),
+            settings: const RouteSettings(name: '/settings'),
+          ),
         );
         break;
     }
@@ -73,14 +153,27 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = widget.currentUser;
+    final userDisplayName = user?.fullName ?? 'Người dùng';
+    final userInitial =
+        userDisplayName.isNotEmpty ? userDisplayName[0].toUpperCase() : '?';
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black54, size: 30),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 30),
           onPressed: () {
-            Navigator.pop(context); // Quay lại CameraScreen
+            // Quay lại CameraScreen, truyền lại currentUser
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) => CameraScreen(currentUser: widget.currentUser),
+                settings: const RouteSettings(name: '/camera'),
+              ),
+            );
           },
         ),
         title: const Text(
@@ -88,7 +181,9 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
+        automaticallyImplyLeading: false,
       ),
+      extendBodyBehindAppBar: true,
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -112,34 +207,40 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Phần Thông tin người dùng (Giữ nguyên)
+                const SizedBox(height: kToolbarHeight - 20),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     CircleAvatar(
                       radius: 30,
                       backgroundColor: Colors.grey[300],
-                      child: const Icon(
-                        Icons.person,
-                        size: 35,
-                        color: Colors.black54,
+                      child: Text(
+                        userInitial,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          color: Colors.black54,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 15),
                     Expanded(
                       child: Container(
                         height: 50,
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
                         decoration: BoxDecoration(
-                          color:
-                              Colors.lightGreenAccent[400] ??
-                              Colors.greenAccent,
+                          color: Colors.white.withOpacity(0.7),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.black54, width: 0.5),
                         ),
-                        child: const Center(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
                           child: Text(
-                            'Thông tin người dùng...',
-                            style: TextStyle(color: Colors.black54),
+                            userDisplayName,
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
@@ -147,8 +248,6 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
                   ],
                 ),
                 const SizedBox(height: 25),
-
-                // Phần Ảnh đã chụp (Giữ nguyên)
                 const Text(
                   'Ảnh đã chụp',
                   style: TextStyle(
@@ -172,7 +271,6 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
                       File(widget.imagePath),
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
-                        print("Lỗi load ảnh: $error");
                         return const Center(
                           child: Icon(
                             Icons.error_outline,
@@ -181,26 +279,10 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
                           ),
                         );
                       },
-                      frameBuilder: (
-                        context,
-                        child,
-                        frame,
-                        wasSynchronouslyLoaded,
-                      ) {
-                        if (wasSynchronouslyLoaded) return child;
-                        return AnimatedOpacity(
-                          child: child,
-                          opacity: frame == null ? 0 : 1,
-                          duration: const Duration(seconds: 1),
-                          curve: Curves.easeOut,
-                        );
-                      },
                     ),
                   ),
                 ),
                 const SizedBox(height: 25),
-
-                // Phần Kết quả tìm kiếm (Giữ nguyên)
                 const Text(
                   'Kết quả tìm kiếm',
                   style: TextStyle(
@@ -213,29 +295,32 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
                 Expanded(
                   child: Container(
                     width: double.infinity,
+                    padding: const EdgeInsets.all(15.0),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.8),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Center(
-                      child: Text(
-                        '(Chưa có kết quả)',
-                        style: TextStyle(color: Colors.grey, fontSize: 16),
-                      ),
+                    child: Center(
+                      child:
+                          _isSearching
+                              ? const CircularProgressIndicator()
+                              : Text(
+                                _searchResult,
+                                style: TextStyle(
+                                  color:
+                                      _searchResult.startsWith('Lỗi')
+                                          ? Colors.red
+                                          : Colors.black87,
+                                  fontSize: 16,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // <<< THÊM NÚT BÁO CÁO >>>
-                // ...existing code...
-
-                // <<< THAY ĐỔI NÚT BÁO CÁO >>>
                 Center(
-                  // Thay ElevatedButton.icon bằng ElevatedButton
                   child: ElevatedButton(
-                    // Bỏ tham số 'icon'
-                    // child thay thế cho 'label'
                     child: const Text(
                       'Báo cáo',
                       style: TextStyle(
@@ -245,28 +330,23 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
                       ),
                     ),
                     onPressed: () {
-                      // Điều hướng sang màn hình ReportScreen mới và truyền imagePath
+                      // <<< SỬA: Truyền currentUser sang ReportScreen >>>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder:
                               (context) => ReportScreen(
                                 imagePath: widget.imagePath,
-                              ), // Sử dụng ReportScreen mới
+                                // currentUser: widget.currentUser, // TODO: Add currentUser to ReportScreen if needed
+                              ),
+                          settings: const RouteSettings(name: '/report'),
                         ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      // Giữ nguyên style hoặc điều chỉnh nếu cần
-                      backgroundColor: const Color.fromARGB(
-                        255,
-                        97,
-                        151,
-                        213,
-                      ), // Màu đỏ cho nút báo cáo
+                      backgroundColor: Colors.redAccent,
                       padding: const EdgeInsets.symmetric(
-                        horizontal:
-                            40, // Có thể điều chỉnh padding ngang nếu muốn
+                        horizontal: 40,
                         vertical: 15,
                       ),
                       shape: RoundedRectangleBorder(
@@ -276,10 +356,7 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
                     ),
                   ),
                 ),
-                // const SizedBox(height: 10), // Khoảng trống dưới nút báo cáo
-
-                // ...existing code...
-                const SizedBox(height: 10), // Khoảng trống dưới nút báo cáo
+                const SizedBox(height: 10),
               ],
             ),
           ),
@@ -303,10 +380,9 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
             label: 'Camera',
           ),
           BottomNavigationBarItem(
-            // <<< THAY ĐỔI ICON >>>
-            icon: Icon(Icons.smart_toy_outlined), // Icon chatbot chưa chọn
-            activeIcon: Icon(Icons.smart_toy), // Icon chatbot đã chọn
-            label: 'Chatbot', // Đổi label nếu muốn
+            icon: Icon(Icons.smart_toy_outlined),
+            activeIcon: Icon(Icons.smart_toy),
+            label: 'Chatbot',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),
@@ -320,8 +396,8 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
         selectedItemColor: Colors.blueAccent[700],
         unselectedItemColor: Colors.grey[600],
         backgroundColor: Colors.white,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
         elevation: 8.0,
       ),
     );

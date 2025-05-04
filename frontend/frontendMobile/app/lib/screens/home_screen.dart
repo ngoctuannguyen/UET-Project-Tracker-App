@@ -1,61 +1,76 @@
 import 'package:flutter/material.dart';
-// 1. Import màn hình chi tiết dự án
-// Chuyển 'app' thành tên package của bạn nếu cần
 import 'package:app/screens/project_detail_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
-import 'package:app/screens/camera_screen.dart'; // <<< Thêm import này
+import 'package:app/screens/camera_screen.dart';
 import 'package:app/screens/chatbot_screen.dart';
 import 'package:app/screens/settings_screen.dart';
+import 'package:app/models/user_model.dart'; // <<< THÊM: Import UserModel
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  // <<< SỬA: Nhận UserModel >>>
+  final UserModel currentUser;
+
+  const HomeScreen({Key? key, required this.currentUser}) : super(key: key);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0; // Index của tab Home là 0
+  int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    print(
+      'HomeScreen initState: currentUser is ${widget.currentUser.fullName}, docId: ${widget.currentUser.docId}',
+    );
+  }
 
   void _onItemTapped(int index) {
-    if (_selectedIndex == index)
-      return; // Không làm gì nếu nhấn lại tab hiện tại
+    if (_selectedIndex == index) return;
 
-    setState(() {
-      _selectedIndex = index; // Cập nhật index để icon sáng đúng
-    });
-
-    // Điều hướng
+    // Điều hướng bằng pushReplacement để thay thế màn hình hiện tại
     switch (index) {
       case 0: // Home (đang ở đây)
         break;
       case 1: // Nhóm
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const FriendsListScreen()),
+          MaterialPageRoute(
+            builder:
+                (context) => FriendsListScreen(currentUser: widget.currentUser),
+            settings: const RouteSettings(name: '/friends'),
+          ),
         );
         break;
       case 2: // Camera
         Navigator.pushReplacement(
-          // Dùng pushReplacement để thay thế màn hình hiện tại
           context,
-          MaterialPageRoute(builder: (context) => const CameraScreen()),
+          MaterialPageRoute(
+            builder: (context) => CameraScreen(currentUser: widget.currentUser),
+            settings: const RouteSettings(name: '/camera'),
+          ),
         );
         break;
       case 3: // Chat Bot
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const ChatbotScreen(),
-          ), // Điều hướng đến ChatbotScreen
+            builder:
+                (context) => ChatbotScreen(currentUser: widget.currentUser),
+            settings: const RouteSettings(name: '/chatbot'),
+          ),
         );
         break;
       case 4: // Settings
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const SettingsScreen(),
-          ), // Điều hướng đến SettingsScreen
+            builder:
+                (context) => SettingsScreen(currentUser: widget.currentUser),
+            settings: const RouteSettings(name: '/settings'),
+          ),
         );
         break;
     }
@@ -63,8 +78,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    print('HomeScreen build với user: ${widget.currentUser.fullName}');
+    String userDisplayName =
+        widget.currentUser.fullName.isNotEmpty
+            ? widget.currentUser.fullName.split(' ').last
+            : 'User';
+    String userInitial =
+        userDisplayName.isNotEmpty ? userDisplayName[0].toUpperCase() : '?';
+
     return Scaffold(
-      extendBodyBehindAppBar: true, // Gradient phủ dưới AppBar
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -72,11 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: const Icon(Icons.menu, color: Colors.white70),
           onPressed: () {
             print('Menu button pressed');
-            // TODO: Mở Drawer nếu có
+            // TODO: Implement drawer
           },
         ),
         title: const Text(
-          'Thành tích',
+          'Trang chủ',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -84,6 +107,19 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 10.0),
+            child: GestureDetector(
+              onTap: () => _onItemTapped(4),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white54,
+                child: Text(userInitial),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Container(
         width: double.infinity,
@@ -106,14 +142,32 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.start,
               children: <Widget>[
                 const SizedBox(height: kToolbarHeight + 10),
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 55,
                   backgroundColor: Colors.white54,
-                  // Đảm bảo file ảnh này tồn tại trong thư mục assets
-                  // và đã được khai báo trong pubspec.yaml
-                  backgroundImage: AssetImage('assets/placeholder_avatar.jpg'),
+                  child: Text(
+                    userInitial,
+                    style: TextStyle(
+                      fontSize: 40,
+                      color: Colors.deepPurple[400],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.currentUser.fullName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  widget.currentUser.email,
+                  style: const TextStyle(fontSize: 14, color: Colors.white70),
                 ),
                 const SizedBox(height: 30),
+                // TODO: Thay thế bằng danh sách dự án thực tế từ API/DB
                 _buildProjectCard(
                   iconData: Icons.assignment,
                   title: 'Dự án A',
@@ -129,7 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   statusIconColor: Colors.orangeAccent,
                   context: context,
                 ),
-                // TODO: Nếu danh sách dự án dài, sử dụng ListView.builder
               ],
             ),
           ),
@@ -153,10 +206,9 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Camera',
           ),
           BottomNavigationBarItem(
-            // <<< THAY ĐỔI ICON >>>
-            icon: Icon(Icons.smart_toy_outlined), // Icon chatbot chưa chọn
-            activeIcon: Icon(Icons.smart_toy), // Icon chatbot đã chọn
-            label: 'Chatbot', // Đổi label nếu muốn
+            icon: Icon(Icons.smart_toy_outlined),
+            activeIcon: Icon(Icons.smart_toy),
+            label: 'Chatbot',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),
@@ -170,14 +222,13 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
         backgroundColor: Colors.white,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
         elevation: 8.0,
       ),
     );
   }
 
-  // Hàm tạo thẻ hiển thị thông tin dự án
   Widget _buildProjectCard({
     required IconData iconData,
     required String title,
@@ -187,11 +238,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return InkWell(
       onTap: () {
-        // Điều hướng đến màn hình chi tiết dự án
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ProjectDetailScreen(projectTitle: title),
+            // <<< SỬA: Đảm bảo truyền currentUser vào ProjectDetailScreen >>>
+            builder:
+                (context) => ProjectDetailScreen(
+                  projectTitle: title,
+                  currentUser: widget.currentUser, // Truyền currentUser
+                ),
+            settings: RouteSettings(name: '/projectDetail/$title'),
           ),
         );
         print('Navigating to details for: $title');
@@ -238,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
             InkWell(
               onTap: () {
                 print('Options for $title pressed');
-                // Ví dụ: Hiển thị menu chỉnh sửa, xóa,...
+                // TODO: Implement options menu
               },
               borderRadius: BorderRadius.circular(20),
               child: const Padding(

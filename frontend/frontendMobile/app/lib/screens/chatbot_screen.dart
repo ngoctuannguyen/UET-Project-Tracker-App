@@ -1,12 +1,16 @@
+// filepath: d:\UET-Project-Tracker-App\frontend\frontendMobile\app\lib\screens\chatbot_screen.dart
 import 'package:flutter/material.dart';
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
 import 'package:app/screens/camera_screen.dart';
 import 'package:app/screens/settings_screen.dart';
-// import 'package:app/screens/settings_screen.dart';
+import 'package:app/models/user_model.dart'; // <<< THÊM: Import UserModel
 
 class ChatbotScreen extends StatefulWidget {
-  const ChatbotScreen({Key? key}) : super(key: key);
+  // <<< THÊM: Nhận currentUser (có thể null nếu không bắt buộc) >>>
+  final UserModel? currentUser;
+
+  const ChatbotScreen({Key? key, this.currentUser}) : super(key: key);
 
   @override
   State<ChatbotScreen> createState() => _ChatbotScreenState();
@@ -14,9 +18,17 @@ class ChatbotScreen extends StatefulWidget {
 
 class _ChatbotScreenState extends State<ChatbotScreen> {
   final TextEditingController _messageController = TextEditingController();
-  final List<Map<String, String>> _messages =
-      []; // Danh sách tin nhắn { 'sender': 'user'/'bot', 'text': '...' }
-  final int _selectedIndex = 3; // Index của tab Chatbot là 3
+  final List<Map<String, String>> _messages = [];
+  final int _selectedIndex = 3;
+
+  @override
+  void initState() {
+    super.initState();
+    // In ra để kiểm tra currentUser có được truyền vào không
+    print(
+      'ChatbotScreen initState: currentUser is ${widget.currentUser?.fullName}',
+    );
+  }
 
   @override
   void dispose() {
@@ -24,45 +36,73 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     super.dispose();
   }
 
-  // Hàm xử lý gửi tin nhắn (hiện tại chỉ thêm vào list và giả lập bot trả lời)
   void _sendMessage() {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
     setState(() {
       _messages.add({'sender': 'user', 'text': text});
-      // Giả lập bot trả lời sau 1 giây
       Future.delayed(const Duration(seconds: 1), () {
-        setState(() {
-          _messages.add({'sender': 'bot', 'text': 'Bot đang trả lời: "$text"'});
-        });
+        if (mounted) {
+          // <<< THÊM: Kiểm tra mounted trước khi setState trong Future >>>
+          setState(() {
+            _messages.add({
+              'sender': 'bot',
+              'text': 'Bot đang trả lời: "$text"',
+            });
+          });
+        }
       });
     });
     _messageController.clear();
     // TODO: Tích hợp logic gọi API chatbot thực tế ở đây
   }
 
-  // Hàm điều hướng cho BottomNavigationBar
   void _onItemTapped(int index) {
-    if (_selectedIndex == index) return;
+    if (_selectedIndex == index || widget.currentUser == null) {
+      // Không điều hướng nếu nhấn tab hiện tại hoặc currentUser là null
+      if (widget.currentUser == null) {
+        print(
+          "Lỗi: currentUser là null, không thể điều hướng từ ChatbotScreen.",
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Lỗi thông tin người dùng, không thể chuyển màn hình.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
+    // <<< SỬA: Truyền widget.currentUser! (đã kiểm tra null) >>>
     switch (index) {
       case 0: // Home
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(currentUser: widget.currentUser!),
+          ),
         );
         break;
       case 1: // Nhóm
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const FriendsListScreen()),
+          MaterialPageRoute(
+            builder:
+                (context) =>
+                    FriendsListScreen(currentUser: widget.currentUser!),
+          ),
         );
         break;
       case 2: // Camera
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const CameraScreen()),
+          MaterialPageRoute(
+            builder:
+                (context) => CameraScreen(currentUser: widget.currentUser!),
+          ),
         );
         break;
       case 3: // Chat Bot (đang ở đây)
@@ -71,8 +111,9 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const SettingsScreen(),
-          ), // Điều hướng đến SettingsScreen
+            builder:
+                (context) => SettingsScreen(currentUser: widget.currentUser!),
+          ),
         );
         break;
     }
@@ -83,19 +124,18 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chatbot AI'),
-        backgroundColor: Colors.deepPurpleAccent, // Màu khác cho chatbot
+        backgroundColor: Colors.deepPurpleAccent,
+        automaticallyImplyLeading: false, // Ẩn nút back mặc định
       ),
       body: Column(
         children: [
-          // Khu vực hiển thị tin nhắn
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(10.0),
-              reverse: true, // Tin nhắn mới nhất ở dưới cùng
+              reverse: true,
               itemCount: _messages.length,
               itemBuilder: (context, index) {
-                final message =
-                    _messages[_messages.length - 1 - index]; // Lấy từ cuối lên
+                final message = _messages[_messages.length - 1 - index];
                 final isUserMessage = message['sender'] == 'user';
                 return Align(
                   alignment:
@@ -124,7 +164,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               },
             ),
           ),
-          // Khu vực nhập tin nhắn
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
             decoration: BoxDecoration(
@@ -147,9 +186,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 10.0),
                     ),
-                    onSubmitted:
-                        (_) =>
-                            _sendMessage(), // Gửi khi nhấn Enter trên bàn phím ảo
+                    onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
                 IconButton(
@@ -162,7 +199,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
           ),
         ],
       ),
-      // Thêm BottomNavigationBar vào màn hình Chatbot
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -181,8 +217,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             label: 'Camera',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.smart_toy_outlined), // Icon chatbot
-            activeIcon: Icon(Icons.smart_toy), // Icon chatbot active
+            icon: Icon(Icons.smart_toy_outlined),
+            activeIcon: Icon(Icons.smart_toy),
             label: 'Chatbot',
           ),
           BottomNavigationBarItem(
@@ -191,10 +227,10 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             label: 'Cài đặt',
           ),
         ],
-        currentIndex: _selectedIndex, // Đặt index là 3
-        onTap: _onItemTapped,
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped, // <<< SỬA: Gọi hàm đã cập nhật >>>
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blueAccent[700],
+        selectedItemColor: Colors.blueAccent[700], // Giữ màu của FriendsList
         unselectedItemColor: Colors.grey[600],
         backgroundColor: Colors.white,
         showSelectedLabels: false,
