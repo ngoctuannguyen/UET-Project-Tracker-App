@@ -4,35 +4,42 @@ const admin = require('firebase-admin');
 
 class Project {
 
-    static project_progress(projectData) {
-        const progress_list = [];
+    static convertFirebaseTime(timestamp) {
+        if (!timestamp || !timestamp._seconds) return null;
         
-        // Ensure project_progress exists and is an array
-        if (!Array.isArray(projectData.project_task)) {
-            return [];
+        // Chuyển sang milliseconds và tạo Date object
+        const date = new Date(
+            timestamp._seconds * 1000 + 
+            Math.floor(timestamp._nanoseconds / 1e6)
+        );
+        
+        // Định dạng theo dd/MM/yyyy
+        return date.toLocaleDateString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    };
+
+    static project_progress(taskData) {
+
+        let status = "in progress";
+        
+        // Compare timestamps properly (assuming start_date is a Firestore Timestamp)
+        if (taskData.start_date && 
+            admin.firestore.Timestamp.fromDate(new Date(taskData.start_date)) > admin.firestore.Timestamp.now()) {
+            status = 'not started';
         }
 
-        for (const entry of projectData.project_task) {
-            let status = "in progress";
-            
-            // Compare timestamps properly (assuming start_date is a Firestore Timestamp)
-            if (entry.start_date && 
-                admin.firestore.Timestamp.fromDate(new Date(entry.start_date)) > admin.firestore.Timestamp.now()) {
-                status = 'not started';
-            }
-
-            const progressEntry = {
-                task_id: uuidv4(),
-                start_date: admin.firestore.Timestamp.fromDate(new Date(entry.start_date)),
-                employee_id: entry.employee_id,
-                work_description: entry.work_description,
-                status: status,
-                deadline: admin.firestore.Timestamp.fromDate(new Date(entry.deadline))
-            };
-            
-            progress_list.push(progressEntry);
-        }
-        return progress_list; 
+        const progressEntry = {
+            task_id: uuidv4(),
+            start_date: admin.firestore.Timestamp.fromDate(new Date(taskData.start_date)),
+            employee_id: taskData.employee_id,
+            work_description: taskData.work_description,
+            status: status,
+            deadline: admin.firestore.Timestamp.fromDate(new Date(taskData.deadline))
+        };
+        return progressEntry; 
     }
 
     static check_project_status(projectProgress, projectData) {
@@ -53,7 +60,7 @@ class Project {
         const projectId = uuidv4(); 
         const projectRef = project_service.doc(projectId);
         
-        const projectProgress = this.project_progress(projectData);
+        const projectProgress = [];
         
         await projectRef.set({
             project_id: projectId,
@@ -84,6 +91,46 @@ class Project {
     static async update_project(projectId, updatedData) {
         const projectRef = project_service.doc(projectId);
         await projectRef.update(updatedData);
+        return projectRef.get().then(doc => doc.data());
+    }
+
+    static async create_project_task(projectId, taskData) {
+        const projectRef = project_service.doc(projectId);
+        const projectDoc = await projectRef.get();
+
+        if (!(projectDoc.data().employee_list.includes(taskData.employee_id))) {
+            throw { message: "Insert employee into project first" };
+        }
+    
+        // Check if the project exists
+        if (!projectDoc.exists) {
+            throw new Error('Project not found');
+        }
+    
+        const projectData = projectDoc.data();
+    
+        // Ensure project_task is an array
+        const projectTasks = projectData.project_task || [];
+    
+        // Check if the task already exists in the array
+        const taskIndex = projectTasks.findIndex(task => task.task_id === taskData.task_id);
+    
+        if (taskIndex !== -1) {
+            // Update the existing task
+            projectTasks[taskIndex] = { ...projectTasks[taskIndex], ...taskData };
+        } else {
+            // Add a new task
+            const newTask = this.project_progress(taskData);
+            console.log(newTask);
+            projectTasks.push(newTask);
+        }
+    
+        // Update the Firestore document
+        await projectRef.update({
+            project_task: projectTasks
+        });
+    
+        // Return the updated project document
         return projectRef.get().then(doc => doc.data());
     }
 
@@ -163,7 +210,17 @@ class Project {
 
     static async getAll() {
         const projectsSnapshot = await project_service.get();
-        const projects = projectsSnapshot.docs.map(doc => doc.data());  
+        const projects = projectsSnapshot.docs.map(doc => {
+            const projectData = doc.data();
+            
+            return {
+                ...projectData,
+                // Chuyển đổi trường project_due
+                project_due: Project.convertFirebaseTime(projectData.project_due) || 'N/A',
+                created_at: Project.convertFirebaseTime(projectData.created_at) || 'N/A'
+            };
+        });
+
         return projects;
     }
 
@@ -186,7 +243,16 @@ class Project {
 
     static async getByLeader(project_leader) {
         const projectsSnapshot = await project_service.where('project_leader', '==', project_leader).get();
-        const projects = projectsSnapshot.docs.map(doc => doc.data());
+        const projects = projectsSnapshot.docs.map(doc => {
+            const projectData = doc.data();
+            
+            return {
+                ...projectData,
+                // Chuyển đổi trường project_due
+                project_due: Project.convertFirebaseTime(projectData.project_due) || 'N/A',
+                created_at: Project.convertFirebaseTime(proojectData.created_at) || 'N/A'
+            };
+        });
         return projects;
     }
 
@@ -201,13 +267,31 @@ class Project {
 
     static async getByEmployee(employeeId) {
         const projectsSnapshot = await project_service.where('employee_list', 'array-contains', employeeId).get();
-        const projects = projectsSnapshot.docs.map(doc => doc.data());
+        const projects = projectsSnapshot.docs.map(doc => {
+            const projectData = doc.data();
+            
+            return {
+                ...projectData,
+                // Chuyển đổi trường project_due
+                project_due: Project.convertFirebaseTime(projectData.project_due) || 'N/A',
+                created_at: Project.convertFirebaseTime(proojectData.created_at) || 'N/A'
+            };
+        });
         return projects;
     }
 
     static async getByStatus(status) {
         const projectsSnapshot = await project_service.where('project_status', '==', status).get();
-        const projects = projectsSnapshot.docs.map(doc => doc.data());
+        const projects = projectsSnapshot.docs.map(doc => {
+            const projectData = doc.data();
+            
+            return {
+                ...projectData,
+                // Chuyển đổi trường project_due
+                project_due: Project.convertFirebaseTime(projectData.project_due) || 'N/A',
+                created_at: Project.convertFirebaseTime(proojectData.created_at) || 'N/A'
+            };
+        });
         return projects;
     }
 
@@ -222,7 +306,16 @@ class Project {
 
     static async getByProjectName(project_name) {
         const projectsSnapshot = await project_service.where("project_name", "==", project_name).get();
-        const projects = projectsSnapshot.docs.map(doc => doc.data());
+        const projects = projectsSnapshot.docs.map(doc => {
+            const projectData = doc.data();
+            
+            return {
+                ...projectData,
+                // Chuyển đổi trường project_due
+                project_due: Project.convertFirebaseTime(projectData.project_due) || 'N/A',
+                created_at: Project.convertFirebaseTime(proojectData.created_at) || 'N/A'
+            };
+        });        
         return projects;
     }
 
@@ -232,19 +325,18 @@ class Project {
     }
 }
 
-const validProjectData = {
-    project_name: "Website Redesign",
-    project_leader: "user_leader_123",
-    employee_list: ["user_1", "user_2", "user_3"], // Giả định các user ID này tồn tại trong User Service
-    project_due: "2024-12-31", // Định dạng ISO string
-    project_description: "Redesign company website with modern UI/UX",
-    client: "client_xyz"
-};
+// const validProjectData = {
+//     project_name: "Dev Team",
+//     project_leader: "user1",
+//     client: "ntn",
+//     project_description: "user1",
+//     project_due: "2023-12-31"
+// }
 
-// Kết quả mong đợi: Tạo project thành công, trả về document data.
+// // Kết quả mong đợi: Tạo project thành công, trả về document data.
 
-Project.getByProjectName("Website Redesign")
-    .then(projects => console.log(JSON.stringify(projects)))
-    .catch(error => console.error("Lỗi:", error));
+// Project.create(validProjectData)
+//     .then(projects => console.log(JSON.stringify(projects)))
+//     .catch(error => console.error("Lỗi:", error));
 
 module.exports = { Project };

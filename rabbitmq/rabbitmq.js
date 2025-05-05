@@ -15,7 +15,6 @@ class RabbitMQService {
             
             await this.channel.assertExchange(this.exchange, 'topic', {
                 durable: true,
-                internal: true
             });
 
             console.log('Connected to RabbitMQ');
@@ -44,7 +43,5 @@ class RabbitMQService {
         }
     }
 }
-
-console.log(new RabbitMQService().connect());
 
 module.exports = new RabbitMQService();

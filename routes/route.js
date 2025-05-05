@@ -4,11 +4,16 @@ const projectController = require('../controller/controller');
 const { ProjectMiddleware } = require('../middleware/middleware');
 
 // Project Routes
-router.post('/projects', ProjectMiddleware.validateProjectData, projectController.createProject);
-router.get('/projects', projectController.getAllProjects);
+router.post('/projects/', ProjectMiddleware.validateProjectData, projectController.createProject);
+router.get('/projects/', projectController.getAllProjects);
 router.get('/projects/:projectId', ProjectMiddleware.checkProjectExists, projectController.getProjectById);
 router.put('/projects/:projectId', ProjectMiddleware.checkProjectExists, projectController.updateProject);
 router.delete('/projects/:projectId', ProjectMiddleware.checkProjectExists,projectController.deleteProject);
+router.post('/projects/:projectId/',
+   ProjectMiddleware.checkProjectExists,
+   ProjectMiddleware.validateProjectTaskDataCreate,
+   projectController.createProjectTask
+);
 
 // Employee Management
 router.post(

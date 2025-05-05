@@ -1,5 +1,5 @@
 const { Project } = require('../model/model');
-const { RabbitMQService } = require('../rabbitmq/rabbitmq');
+const RabbitMQService= require('../rabbitmq/rabbitmq');
 
 // Add event formatting helper
 const createEvent = (eventType, payload) => ({
@@ -20,6 +20,24 @@ const projectController = {
             );
 
             res.status(201).json(newProject);
+        } catch (error) {
+            res.status(400).json({ message: error.message });
+        }
+    },
+
+    createProjectTask: async (req, res) => {
+        try {
+            const taskData = req.body;
+            const newTask = await Project.create_project_task(
+                req.params.projectId,
+                taskData
+            );
+    
+            await RabbitMQService.publishEvent('event.project.task.created', 
+                createEvent('PROJECT_TASK_CREATED', newTask)
+            );
+    
+            res.status(201).json(newTask);
         } catch (error) {
             res.status(400).json({ message: error.message });
         }
