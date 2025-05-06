@@ -1,17 +1,25 @@
 // components/TaskCreateOverlay.jsx
 import React, { useState } from "react";
 import { toast } from "sonner";
+import axios from "axios";
 
-const TaskCreateOverlay = ({ onClose, projectId }) => {
+const TaskCreateOverlay = ({ onClose, taskToEdit }) => {
   const [taskTitle, setTaskTitle] = useState("");
   const [assignee, setAssignee] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [workDescription, setWorkDescription] = useState("");
 
   const handleCreateTask = () => {
     if (!taskTitle || !assignee || !dueDate) {
       toast.error("Please fill in all fields");
       return;
     }
+
+    // try {
+    //   axios.post(`/api/projects/${project.project_id}/tasks`)
+    // } catch (error) {
+    //   toast.error("Error creating task: ", error);
+    // }
 
     // TODO: Gửi task mới vào database (hiện tại mình sẽ chỉ toast để demo)
     toast.success("Task created successfully!");
@@ -65,6 +73,17 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
               className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>
+
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">Work Description</label>
+            <input
+              type="work_description"
+              value={workDescription}
+              onChange={(e) => setWorkDescription(e.target.value)}
+              className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring focus:border-blue-300"
+            />
+          </div>
+
         </div>
 
         {/* Buttons */}

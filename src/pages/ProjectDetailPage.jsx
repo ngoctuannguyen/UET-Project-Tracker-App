@@ -1,12 +1,37 @@
 // pages/ProjectDetailPage.jsx
-import { useParams, Link, Outlet, useLocation } from "react-router-dom";
-import { projects } from "@/data/sampleProjects";
+import { useParams, Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { useEffect, useState } from "react";
 
 const ProjectDetailPage = () => {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [project, setProject] = useState(location.state?.project || null);
+  const [loading, setLoading] = useState(!location.state?.project);
 
-  const project = projects.find((p) => p.id === id);
+  const fetchProject = async () => {
+    try {
+      const response = await axios.get(`/api/projects/${id}`);
+      setProject(response.data);
+    } catch (error) {
+      console.error("Error fetching project:", error);
+      navigate("/projects", { replace: true }); // Redirect nếu không tìm thấy
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data nếu không có state
+  useEffect(() => {
+    if (!location.state?.project) {
+      fetchProject();
+    } else {
+      setLoading(false);
+    }
+  }, [id, location.state]);
+
+  console.log("Location", project);
 
   if (!project) {
     return <div className="text-center text-red-500 text-3xl font-semibold">Project not found</div>;
@@ -45,7 +70,7 @@ const ProjectDetailPage = () => {
 
       {/* Nội dung trang con */}
       <div className="flex-1 p-8 bg-gray-50">
-        <Outlet /> {/* 👈 Load các trang con */}
+        <Outlet context={[project, fetchProject]}/> {/* 👈 Load các trang con */}
       </div>
     </div>
   );

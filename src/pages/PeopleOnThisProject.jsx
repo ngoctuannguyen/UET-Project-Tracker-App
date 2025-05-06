@@ -1,24 +1,58 @@
-import React, { useState } from "react";
-import { useParams } from "react-router-dom";
-import { projects } from "@/data/sampleProjects"; // giả lập local DB
-import { Trash } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { useParams, useOutletContext } from "react-router-dom";
+import axios from "axios";
+import { Trash, Plus, User, Crown, Briefcase } from "lucide-react";
 
-const PeopleOnThisProject = () => {
+  const PeopleOnThisProject = () => {
   const { id } = useParams();
-  const project = projects.find(p => p.id === id);
-
-  const [employees, setEmployees] = useState(project?.employeeList || []);
+  const [project, fetchProject] = useOutletContext();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [newEmployee, setNewEmployee] = useState("");
 
-  const handleAdd = () => {
-    if (newEmployee.trim() && !employees.includes(newEmployee.trim())) {
-      setEmployees([...employees, newEmployee.trim()]);
+  // Lấy danh sách nhân viên từ project context
+  const owner = project?.project_leader || "";
+  const employees = project?.employee_list?.filter(e => e !== owner) || [];
+
+  const handleAdd = async () => {
+    const trimmedName = newEmployee.trim();
+    if (!trimmedName) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      await axios.post(`/api/projects/${id}/employees`, {
+        employee: trimmedName
+      });
+
+      fetchProject();
+
       setNewEmployee("");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to add employee");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleRemove = (name) => {
-    setEmployees(employees.filter(emp => emp !== name));
+  const handleRemove = async (employeeName) => {
+    if (employeeName === owner) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+
+      await axios.delete(`/api/projects/${id}/employees`, {
+        data: { employee: employeeName }
+      });
+
+      fetchProject(); // Refetch data từ server
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to remove employee");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!project) {
@@ -26,50 +60,113 @@ const PeopleOnThisProject = () => {
   }
 
   return (
-    <div className="p-6 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-6">People On This Project</h1>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-3xl font-bold mb-8 text-gray-800 dark:text-white">Project Team</h1>
 
-      <div className="mb-6">
-        <p className="text-lg font-medium">
-          <span className="font-semibold text-gray-700">Leader:</span> {project.leader}
-        </p>
-        <p className="text-lg font-medium">
-          <span className="font-semibold text-gray-700">Client:</span> {project.client || "N/A"}
-        </p>
+      {/* Project Leadership Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-8">
+        <div className="mb-6">
+          <div className="flex items-center mb-4">
+            <Crown className="w-6 h-6 text-amber-500 mr-2" />
+            <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200">Project Leadership</h2>
+          </div>
+          <div className="flex items-center bg-indigo-50 dark:bg-gray-700 px-4 py-3 rounded-lg">
+            <User className="w-5 h-5 text-indigo-600 dark:text-indigo-400 mr-3" />
+            <span className="font-medium text-gray-700 dark:text-gray-200">{owner}</span>
+            <span className="ml-2 text-sm text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 px-2 py-1 rounded-full">Owner</span>
+          </div>
+        </div>
+
+        <div className="flex items-center">
+          <Briefcase className="w-6 h-6 text-emerald-500 mr-2" />
+          <div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Client</p>
+            <p className="text-gray-700 dark:text-gray-200">{project.client || "Not specified"}</p>
+          </div>
+        </div>
       </div>
 
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold mb-2">Employees</h2>
-        <div className="flex space-x-2 mb-4">
-          <input
-            type="text"
-            placeholder="Enter employee name"
-            value={newEmployee}
-            onChange={(e) => setNewEmployee(e.target.value)}
-            className="border px-4 py-2 rounded w-full"
-          />
+      {/* Team Members Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+        <div className="flex items-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200 mr-4">Team Members</h2>
+          <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm px-3 py-1 rounded-full">
+            {employees.length} members
+          </span>
+        </div>
+
+        {/* Add Member Form */}
+        <div className="flex gap-3 mb-6">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              placeholder="Add team member..."
+              value={newEmployee}
+              onChange={(e) => setNewEmployee(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !loading && handleAdd()}
+              disabled={loading}
+              className="w-full pl-4 pr-12 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-200 transition-all"
+            />
+            <Plus className="w-5 h-5 text-gray-400 absolute right-4 top-3.5" />
+          </div>
           <button
             onClick={handleAdd}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            disabled={loading || !newEmployee.trim()}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:hover:bg-blue-600 flex items-center"
           >
-            Add
+            {loading ? (
+              <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <Plus className="w-5 h-5 mr-2" />
+            )}
+            Add Member
           </button>
         </div>
 
-        {employees.length === 0 ? (
-          <p className="text-gray-500">No employees assigned yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {employees.map((emp, idx) => (
-              <li key={idx} className="flex justify-between items-center bg-white shadow px-4 py-2 rounded">
-                <span>{emp}</span>
-                <button onClick={() => handleRemove(emp)} className="text-red-500 hover:text-red-700">
-                  <Trash className="w-4 h-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg flex items-center">
+            <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            {error}
+          </div>
         )}
+
+        {/* Members List */}
+        <ul className="space-y-3">
+          {employees.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <p className="mb-2">No team members added yet</p>
+              <p className="text-sm">Start by adding team members above</p>
+            </div>
+          ) : (
+            employees.map((emp, idx) => (
+              <li
+                key={`${emp}-${idx}`}
+                className="group flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700 hover:bg-white dark:hover:bg-gray-600 rounded-lg transition-all duration-200"
+              >
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mr-3">
+                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <span className="font-medium text-gray-700 dark:text-gray-200">{emp}</span>
+                </div>
+                {emp !== owner && (
+                  <button
+                    onClick={() => handleRemove(emp)}
+                    disabled={loading}
+                    className="p-2 text-gray-400 hover:text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 disabled:opacity-50"
+                  >
+                    <Trash className="w-5 h-5" />
+                  </button>
+                )}
+              </li>
+            ))
+          )}
+        </ul>
       </div>
     </div>
   );
