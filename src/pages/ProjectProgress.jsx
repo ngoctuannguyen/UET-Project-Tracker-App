@@ -1,39 +1,76 @@
 // pages/ProjectProgress.jsx
 import React, { useState } from "react";
-import { useParams } from "react-router-dom";
-import { projects } from "@/data/sampleProjects";
+import { useParams, useOutletContext } from "react-router-dom";
+import axios from "axios";
 import TaskCreateOverlay from "@/components/TaskCreateOverlay";
+import TaskEditOverlay from "@/components/TaskEditOverlay";
+import { toast } from "sonner";
 
 const ProjectProgress = () => {
   const { id } = useParams();
-  const project = projects.find((p) => p.id === id);
+  const [project, fetchProject] = useOutletContext();
 
   const [filter, setFilter] = useState("not done");
   const [createVisible, setCreateVisible] = useState(false);
   const [visibleCount, setVisibleCount] = useState(5);
+  const [editTask, setEditTask] = useState(false); // State cho task đang chỉnh sửa
 
   if (!project) {
     return <div className="p-6 text-red-500">Project not found</div>;
   }
 
-  const totalTasks = project.tasks.length;
-  const completedTasks = project.tasks.filter((t) => t.status === "done").length;
+  const totalTasks = project.project_task.length;
+
+  const completedTasks = project.project_task.filter((t) => t.status === "done").length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
+  // console.log("Project Progress", progress, completedTasks, totalTasks);
+
+  const projectDue = new Date(
+    project.project_due._seconds * 1000 + project.project_due._nanoseconds / 1e6
+  );
   let status = "Not Start";
   if (completedTasks === totalTasks && totalTasks !== 0) {
-    status = "Completed";
-  } else if (completedTasks > 0) {
+    status = "Done";
+  } else if (projectDue >= new Date()) {
     status = "In Progress";
   }
 
-  const filteredTasks = project.tasks.filter((t) => {
+  const filteredTasks = project.project_task.filter((t) => {
     if (filter === "done") return t.status === "done";
     return t.status !== "done";
   });
 
+  const handleTaskUpdate = async (updatedTask) => {
+    try {
+      await axios.put(`/api/projects/${project.project_id}/tasks/${updatedTask.task_id}`, updatedTask);
+      fetchProject();
+    } catch (error) {
+      toast.error("Error updating task:", error);
+    }
+  };
+
+  const handleTaskCreate = async (newTask) => {
+    try {
+      await axios.post()
+    } catch (error) {
+      toast.error("Error creating task: ", error)
+    }
+  };
+
   const handleSeeMore = () => {
     setVisibleCount((prev) => Math.min(prev + 5, filteredTasks.length));
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await axios.delete(`/api/projects/${project.project_id}/tasks/${taskId}`);
+      fetchProject();
+      toast.success("Task deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete task");
+      console.error("Delete error:", error);
+    }
   };
 
   return (
@@ -90,19 +127,42 @@ const ProjectProgress = () => {
       <div className="flex-1 overflow-y-auto space-y-4 pr-2">
         {filteredTasks.slice(0, visibleCount).map((task) => (
           <div
-            key={task.id}
-            className="bg-white p-4 rounded-lg shadow flex justify-between items-center"
+            key={task.task_id}
+            className="bg-white p-4 rounded-lg shadow flex justify-between items-center group hover:shadow-md transition-shadow"
           >
-            <div>
-              <h3 className="font-semibold">{task.title}</h3>
-              <p className="text-gray-500 text-sm">Assign to: {task.assignee}</p>
+            <div className="flex-1">
+              <h3 className="font-semibold mb-1">{task.work_description}</h3>
+              <p className="text-gray-500 text-sm">Assign to: {task.employee_id}</p>
             </div>
-            <div className="flex flex-col items-end">
-              <p className="text-gray-400 text-sm">Due: {task.dueDate}</p>
-              <span className={`mt-2 px-4 py-1 rounded-full text-sm font-semibold
-                ${task.status === "done" ? "bg-green-100 text-green-600" : "bg-yellow-100 text-yellow-600"}`}>
-                {task.status === "done" ? "Done" : "Not Done"}
-              </span>
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col items-end">
+                <p className="text-gray-400 text-sm">
+                  Due: {new Date(task.deadline._seconds * 1000).toLocaleDateString()}
+                </p>
+                <span
+                  className={`mt-2 px-4 py-1 rounded-full text-sm font-semibold ${
+                    task.status === "done"
+                      ? "bg-green-100 text-green-600"
+                      : "bg-yellow-100 text-yellow-600"
+                  }`}
+                >
+                  {task.status === "done" ? "Done" : "Not Done"}
+                </span>
+              </div>
+              <button
+                onClick={() => setEditTask(task)}
+                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity"
+                title="Edit task"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+              </button>
             </div>
           </div>
         ))}
@@ -120,11 +180,22 @@ const ProjectProgress = () => {
         )}
       </div>
 
+      {/* Edit Task Overlay */}
+      {editTask && (
+      <TaskEditOverlay
+        task={editTask}
+        project={project}
+        onClose={() => setEditTask(null)}
+        onSave={handleTaskUpdate}
+        onDelete={handleDeleteTask} // Thêm prop này
+      />)}
+
       {/* Create Task Overlay */}
       {createVisible && (
         <TaskCreateOverlay
           onClose={() => setCreateVisible(false)}
-          projectId={project.id}
+          project={project}
+          onSave={handleTaskCreate}
         />
       )}
     </div>

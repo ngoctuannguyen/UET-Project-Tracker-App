@@ -14,7 +14,8 @@ const ProjectManagementPage = () => {
   const navigate = useNavigate();
 
   const handleRowClick = (projectId) => {
-    navigate(`/project/${projectId}`); // Điều hướng đến trang chi tiết dự án
+    const selectedProject = projects.find((project) => project.id === projectId);
+    navigate(`/project/${projectId}`, { state: selectedProject});
   };
 
   // Fetch projects từ API
@@ -33,7 +34,7 @@ const ProjectManagementPage = () => {
           progress: project.project_progress
         }));
         
-        setProjects(transformedData);
+        setProjects(transformedData); // 👈 Lưu danh sách vào Redux
         setError(null);
       } catch (err) {
         setError(err.message);
@@ -45,8 +46,6 @@ const ProjectManagementPage = () => {
 
     fetchProjects();
   }, []);
-
-  console.log(projects);
 
   // Xử lý dữ liệu projects
   const processedProjects = projects.map((project) => {
