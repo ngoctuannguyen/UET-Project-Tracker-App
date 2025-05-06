@@ -1,13 +1,44 @@
 import React, { useState, useEffect } from "react";
-import { projects as sampleProjects } from "@/data/sampleProjects";
 import { useNavigate } from "react-router-dom";
 import ProjectCard from "@/components/ProjectCard";
 import NotificationCard from "@/components/NotificationCard";
+import axios from "axios";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState("not-start");
   const [columns, setColumns] = useState(1); // Số cột mặc định
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const response = await axios.get("/api/projects");
+        
+        // Transform dữ liệu từ API
+        const transformedData = response.data.map(project => ({
+          id: project.project_id,
+          name: project.project_name,
+          leader: project.project_leader,
+          dueDate: project.project_due,
+          status: project.project_status,
+          progress: project.project_progress
+        }));
+        
+        setProjects(transformedData); // 👈 Lưu danh sách vào Redux
+        setError(null);
+      } catch (err) {
+        setError(err.message);
+        console.error("Lỗi khi tải dự án:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
 
   // Tính toán số cột dựa trên kích thước màn hình
   useEffect(() => {
@@ -27,8 +58,7 @@ const Dashboard = () => {
     return () => window.removeEventListener("resize", updateColumns); // Dọn dẹp sự kiện
   }, []);
 
-  // Sử dụng trực tiếp progress và status từ sampleProjects
-  const processedProjects = sampleProjects.map((project) => ({
+  const processedProjects = projects.map((project) => ({
     ...project,
     // Đảm bảo các trường này luôn có trong sampleProjects
     progress: project.progress,
@@ -36,11 +66,13 @@ const Dashboard = () => {
   }));
 
   const filteredProjects = processedProjects.filter((project) => {
-    if (tab === "not-start") return project.status === "Not Started" || project.status === "Not Start";
-    if (tab === "inprogress") return project.status === "In Progress";
-    if (tab === "completed") return project.status === "Completed";
+    if (tab === "not-start") return project.status === "not started" || project.status === "Not Start";
+    if (tab === "inprogress") return project.status === "in progress";
+    if (tab === "completed") return project.status === "completed";
     return true;
   });
+
+  // console.log(filteredProjects);
 
   // Hiển thị số lượng dự án vừa đủ với số cột
   const visibleProjects = filteredProjects.slice(0, columns);
@@ -70,10 +102,10 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-        {visibleProjects.map((project) => (
+        {visibleProjects.map((project, index) => (
           <ProjectCard
             key={project.id}
-            title={"Project " + project.id}
+            title={"Project " + (index + 1)}
             subtitle={project.name}
             date={"Due date: " + project.dueDate}
             onClick={() => navigate(`/project/${project.id}`)}
