@@ -4,7 +4,7 @@ dotenv.config();
 
 const serviceAccount = require("../service_account/firebase-service-account.json");
 
-// Khởi tạo app mặc định nếu chưa có
+// Khởi tạo app mặc định
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -16,6 +16,7 @@ if (!admin.apps.length) {
 
 // Lấy auth service từ app mặc định
 const authService = admin.auth();
+const firestoreService = admin.firestore();
 
 // --- DEBUG (Có thể giữ lại hoặc xóa nếu muốn) ---
 console.log(
@@ -25,5 +26,5 @@ console.log(
 );
 // ---------------
 
-// Export cả admin và authService
-module.exports = { admin, authService };
+// Export cả admin và authService và firestoreService
+module.exports = { admin, authService, firestoreService };
