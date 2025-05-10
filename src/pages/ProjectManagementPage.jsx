@@ -50,13 +50,33 @@ const ProjectManagementPage = () => {
   // Xử lý dữ liệu projects
   const processedProjects = projects.map((project) => {
 
+    let formattedDueDate = "Invalid Date";
+
+    if (typeof project.dueDate === "string" && project.dueDate.includes("/")) {
+      // Trường hợp `dueDate` là chuỗi ngày không chuẩn (ví dụ: "31/12/2025")
+      const formatDate = (dateString) => {
+        const [day, month, year] = dateString.split("/");
+        return `${year}-${month}-${day}`;
+      };
+      formattedDueDate = new Date(formatDate(project.dueDate)).toLocaleDateString("en-US");
+    } else if (typeof project.dueDate === "number") {
+      // Trường hợp `dueDate` là timestamp
+      formattedDueDate = new Date(project.dueDate).toLocaleDateString("en-US");
+    } else if (project.dueDate && project.dueDate._seconds) {
+      // Trường hợp `dueDate` là Firestore timestamp
+      formattedDueDate = new Date(
+        project.dueDate._seconds * 1000 + project.dueDate._nanoseconds / 1e6
+      ).toLocaleDateString("en-US");
+    }
+    
+    console.log(formattedDueDate);
     return {
       id: project.id,
       name: project.name,
       lead: project.leader,
       progress: project.progress,
       status: project.status,
-      dueDate: project.dueDate   
+      dueDate: formattedDueDate   
     };
   });
 

@@ -1,26 +1,55 @@
 // components/TaskEditOverlay.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { X } from "lucide-react";
+import { X, Trash } from "lucide-react";
+import { toast } from "sonner"; 
 
-const TaskEditOverlay = ({ task, project, onClose, onSave }) => {
+const TaskEditOverlay = ({ task, projectId, onClose, fetchProject }) => {
+
   const [formData, setFormData] = useState({
     work_description: "",
     employee_id: "",
     deadline: "",
-    status: "not done",
+    start_date: " ",
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // Fetch task data from API
   useEffect(() => {
-    if (task) {
-      const deadlineDate = new Date(task.deadline._seconds * 1000);
-      setFormData({
-        work_description: task.work_description,
-        employee_id: task.employee_id,
-        deadline: deadlineDate.toISOString().slice(0, 16),
-        status: task.status,
-      });
-    }
+    const fetchTask = async () => {
+      try {
+        setLoading(true);
+        
+        // If task is provided directly, use it
+        if (task) {
+          const deadlineDate = task.deadline?._seconds 
+            ? new Date(task.deadline._seconds * 1000)
+            : new Date(task.deadline);
+
+          const startDate = task.start_date?._seconds 
+          ? new Date(task.start_date._seconds * 1000)
+          : new Date(task.start_date);
+
+          
+          setFormData({
+            work_description: task.work_description || "",
+            employee_id: task.employee_id || "",
+            deadline: deadlineDate.toISOString().split("T")[0],
+            start_date: startDate.toISOString().split("T")[0]
+          });
+        } 
+      } catch (err) {
+        const errorMessage =
+          error.response?.data?.message;
+        toast.error(errorMessage);
+        // setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTask();
   }, [task]);
 
   const handleSubmit = async (e) => {
@@ -29,28 +58,39 @@ const TaskEditOverlay = ({ task, project, onClose, onSave }) => {
       const updatedTask = {
         ...formData,
         task_id: task.task_id,
-        deadline: new Date(formData.deadline),
       };
-      await onSave(updatedTask);
+
+      await axios.put(`/api/projects/${projectId}/tasks/${task.task_id}`, updatedTask);
+
+      toast.success("Task updated successfully!");
+      fetchProject();
       onClose();
     } catch (error) {
-      console.error("Error updating task:", error);
+      const errorMessage =
+      error.response?.data?.message || "An error occurred while updating the task.";
+      toast.error(errorMessage);
+      // setError(errorMessage);
     }
   };
 
   const handleDelete = async () => {
     if (window.confirm("Are you sure you want to delete this task?")) {
       try {
-        await onDelete(task.task_id);
+        await axios.delete(`/api/projects/${projectId}/tasks/${task.task_id}`);
+        fetchProject();
         onClose();
+        toast.success("Task deleted successfully!");
       } catch (error) {
         console.error("Error deleting task:", error);
       }
     }
   };
 
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>{error}</div>;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 w-full max-w-md relative">
         <button
           onClick={onClose}
@@ -85,26 +125,25 @@ const TaskEditOverlay = ({ task, project, onClose, onSave }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Deadline</label>
+            <label className="block text-sm font-medium mb-1">Start Date</label>
             <input
-              type="datetime-local"
-              value={formData.deadline}
-              onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+              type="date"
+              value={formData.start_date}
+              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
               className="w-full px-4 py-2 border rounded-lg"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Status</label>
-            <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            <label className="block text-sm font-medium mb-1">Deadline</label>
+            <input
+              type="date"
+              value={formData.deadline}
+              onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
               className="w-full px-4 py-2 border rounded-lg"
-            >
-              <option value="not done">Not Done</option>
-              <option value="done">Done</option>
-            </select>
+              required
+            />
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
@@ -115,13 +154,6 @@ const TaskEditOverlay = ({ task, project, onClose, onSave }) => {
             >
                 <Trash className="w-4 h-4" />
                 Delete
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-            >
-              Cancel
             </button>
             <button
               type="submit"
@@ -137,3 +169,4 @@ const TaskEditOverlay = ({ task, project, onClose, onSave }) => {
 };
 
 export default TaskEditOverlay;
+

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import axios from "axios";
+import { toast } from "sonner";
 import { Trash, Plus, User, Crown, Briefcase } from "lucide-react";
 
-  const PeopleOnThisProject = () => {
+const PeopleOnThisProject = () => {
   const { id } = useParams();
   const [project, fetchProject] = useOutletContext();
   const [loading, setLoading] = useState(false);
@@ -22,34 +23,33 @@ import { Trash, Plus, User, Crown, Briefcase } from "lucide-react";
       setLoading(true);
       setError(null);
       
-      await axios.post(`/api/projects/${id}/employees`, {
-        employee: trimmedName
-      });
+      await axios.post(`/api/projects/${id}/employees/${trimmedName}`);
+
+      toast.success("Employee added successfully!");
 
       fetchProject();
-
       setNewEmployee("");
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to add employee");
+      toast.error(err.response?.data?.message || "Failed to add employee");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRemove = async (employeeName) => {
-    if (employeeName === owner) return;
+  const handleRemove = async (employeeId) => {
+    // if (employeeId === owner.id) return;
     
     try {
       setLoading(true);
       setError(null);
 
-      await axios.delete(`/api/projects/${id}/employees`, {
-        data: { employee: employeeName }
-      });
+      await axios.delete(`/api/projects/${id}/employees/${employeeId}`);
+
+      toast.success("Employee removed successfully!");
 
       fetchProject(); // Refetch data từ server
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to remove employee");
+      toast.error(err.response?.data?.message || "Failed to remove employee");
     } finally {
       setLoading(false);
     }

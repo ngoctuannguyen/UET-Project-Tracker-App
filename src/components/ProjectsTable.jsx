@@ -37,7 +37,7 @@ const ProjectsTable = ( { projects, onRowClick }) => {
                   <td className="py-3 px-5 border-b">{project.progress}%</td>
                   <td className="py-3 px-5 border-b">{project.status}</td>
                   <td className="py-3 px-5 border-b">
-                    {project.dueDate ? new Date(project.dueDate).toLocaleDateString() : "N/A"}
+                    {project.dueDate}
                   </td>
                 </tr>
               ))
