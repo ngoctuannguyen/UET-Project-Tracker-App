@@ -4,16 +4,15 @@ const cors = require('cors');
 const reportRoutes = require('./routers/reportRoutes.js')
 // Initialize express app
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3004;
 const {
   initializeDatabase,
-  Project,
-  Unit,
-  Employee,
   Product,
+  Component,
+  Component_Employee,
   Report
 } = require('./models');
-console.log({ Project, Unit, Employee, Product, Report });
+console.log({ Product, Component, Component_Employee, Report });
 
 initializeDatabase()
   .then((sequelize) => {

@@ -1,14 +1,9 @@
 module.exports = (sequelize, DataTypes) => {
     const Product = sequelize.define('Product', {
-      id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true
-      },
       productCode: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true
+        primaryKey: true,
       },
       name: {
         type: DataTypes.STRING,
@@ -17,9 +12,9 @@ module.exports = (sequelize, DataTypes) => {
       progress: {
         type: DataTypes.STRING
       },
-      stage: {
-        type: DataTypes.STRING
-      },
+      status: {
+        type: DataTypes.ENUM,
+        values: ['in-progress', 'completed', 'on-hold'],},
       timeSpent: {
         type: DataTypes.INTEGER
       }

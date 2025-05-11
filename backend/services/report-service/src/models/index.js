@@ -34,32 +34,25 @@ const sequelize = new Sequelize(
 );
 
 // 3. Import các model
-const Project = require('./project')(sequelize, DataTypes);
-const Unit = require('./unit')(sequelize, DataTypes);
-const Employee = require('./employee')(sequelize, DataTypes);
+
 const Product = require('./product')(sequelize, DataTypes);
+const Component = require('./component')(sequelize, DataTypes);
+const Component_Employee = require('./component-employee')(sequelize, DataTypes);
 const Report = require('./report')(sequelize, DataTypes);
 
 // 4. Định nghĩa quan hệ
-// Project - Unit (1 - n)
-Project.hasMany(Unit, { foreignKey: 'projectId' });
-Unit.belongsTo(Project, { foreignKey: 'projectId' });
 
-// Unit - Employee (1 - n)
-Unit.hasMany(Employee, { foreignKey: 'unitId' });
-Employee.belongsTo(Unit, { foreignKey: 'unitId' });
 
 // Project - Product (1 - n)
-Project.hasMany(Product, { foreignKey: 'projectId' });
-Product.belongsTo(Project, { foreignKey: 'projectId' });
+Product.hasMany(Component, { foreignKey: 'productCode' });
+Component.belongsTo(Product, { foreignKey: 'productCode' });
 
-// Employee - Report (1 - n)
-Employee.hasMany(Report, { foreignKey: 'employeeId' });
-Report.belongsTo(Employee, { foreignKey: 'employeeId' });
+Component_Employee.hasMany(Component, { foreignKey: 'componentCode' });
+Component.belongsTo(Component_Employee, { foreignKey: 'componentCode' });
 
 // Product - Report (1 - n)
-Product.hasMany(Report, { foreignKey: 'productId', onDelete: 'SET NULL' });
-Report.belongsTo(Product, { foreignKey: 'productId', onDelete: 'SET NULL' });
+Component.hasMany(Report, { foreignKey: 'componentCode'});
+Report.belongsTo(Component, { foreignKey: 'componentCode'});
 
 // 5. Hàm khởi tạo & đồng bộ
 async function initializeDatabase() {
@@ -80,9 +73,8 @@ async function initializeDatabase() {
 module.exports = {
   sequelize,
   initializeDatabase,
-  Project,
-  Unit,
-  Employee,
   Product,
+  Component,
+  Component_Employee,
   Report
 };
