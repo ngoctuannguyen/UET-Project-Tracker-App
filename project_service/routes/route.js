@@ -14,10 +14,14 @@ router.post('/projects/:projectId/',
    ProjectMiddleware.validateProjectTaskDataCreate,
    projectController.createProjectTask
 );
+router.get("/projects/:projectId/tasks/:taskId",
+   ProjectMiddleware.checkProjectExists,
+   projectController.getProjectTaskById
+);
 
 // Employee Management
 router.post(
-  '/projects/:projectId/employees',
+  '/projects/:projectId/employees/:employeeId',
   ProjectMiddleware.validateEmployee,
   projectController.addEmployee
 );
@@ -26,6 +30,11 @@ router.delete(
   ProjectMiddleware.validateEmployee,
   projectController.removeEmployee
 );
+router.delete(
+  '/projects/:projectId/tasks/:taskId',
+  ProjectMiddleware.checkProjectExists,
+  projectController.removeTask
+)
 
 // Filter Routes
 router.get('/projects/leader/:leaderId', projectController.getProjectsByLeader);

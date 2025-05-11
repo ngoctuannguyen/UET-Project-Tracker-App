@@ -111,13 +111,13 @@ const projectController = {
         try {
             const updatedProject = await Project.add_employee(
                 req.params.projectId,
-                req.body.employeeId
+                req.params.employeeId
             );
 
             await RabbitMQService.publishEvent('event.project.employee.added', 
                 createEvent('PROJECT_EMPLOYEE_ADDED', {
                     projectId: req.params.projectId,
-                    employeeId: req.body.employeeId,
+                    employeeId: req.params.employeeId,
                     data: updatedProject
                 })
             );
@@ -150,6 +150,27 @@ const projectController = {
         }
     },
 
+    removeTask: async (req, res) => {
+        try {
+            const updatedProject = await Project.deleteTask(
+                req.params.projectId,
+                req.params.taskId
+            );
+
+            await RabbitMQService.publishEvent('event.project.task.removed', 
+                createEvent('PROJECT_TASK_REMOVED', {
+                    projectId: req.params.projectId,
+                    taskId: req.params.taskId,
+                    data: updatedProject
+                })
+            );
+
+            res.status(200).json(updatedProject);
+        } catch (error) {
+            res.status(400).json({ message: error.message });
+        }
+    },
+
     // Keep other methods exactly the same
     getAllProjects: async (req, res) => {
         try {
@@ -164,6 +185,15 @@ const projectController = {
         try {
             const project = await Project.getById(req.params.projectId);
             res.status(200).json(project);
+        } catch (error) {
+            res.status(404).json({ message: error.message });
+        }
+    },
+
+    getProjectTaskById: async (req, res) => {
+        try {
+            const task = await Project.getProjectTaskById(req.params.projectId, req.params.taskId);
+            res.status(200).json(task);
         } catch (error) {
             res.status(404).json({ message: error.message });
         }

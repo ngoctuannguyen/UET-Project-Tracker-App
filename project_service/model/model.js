@@ -79,6 +79,29 @@ class Project {
         return projectRef.get().then(doc => doc.data());
     }
 
+    static async getProjectTaskById(projectId, taskId) {
+        const projectRef = project_service.doc(projectId);
+        const projectDoc = await projectRef.get();
+    
+        // Check if the project exists
+        if (!projectDoc.exists) {
+            throw new Error("Project not found");
+        }
+    
+        // Retrieve the project_task field
+        const projectData = projectDoc.data();
+        const projectTasks = projectData.project_task || []; // Ensure project_task is an array
+    
+        // Find the task with the specified taskId
+        const task = projectTasks.find(task => task.task_id === taskId);
+    
+        if (!task) {
+            throw new Error(`Task with ID ${taskId} not found`);
+        }
+    
+        return task; // Return the found task
+    }
+
     static async getById(projectId) {
         const projectRef = project_service.doc(projectId);
         const projectDoc = await projectRef.get();
@@ -121,6 +144,9 @@ class Project {
         } else {
             // Add a new task
             const newTask = this.project_progress(taskData);
+            if (projectData.project_due.toMillis() < newTask.deadline.toMillis()) {
+                throw { message: "Deadline must be before project due date" };
+            }
             console.log(newTask);
             projectTasks.push(newTask);
         }
@@ -135,17 +161,49 @@ class Project {
     }
 
     static async update_project_task(projectId, task_id, updatedData) {
-        const projectRef = project_service.doc(projectId).get(project_task);
-        projectRef.where('task_id', '==', task_id).get().then(snapshot => {
-            snapshot.forEach(doc => {
-                doc.ref.update(updatedData);
-            });
+        const projectRef = project_service.doc(projectId);
+        const projectDoc = await projectRef.get();
+    
+        // Check if the project exists
+        if (!projectDoc.exists) {
+            throw new Error('Project not found');
+        }
+    
+        // Retrieve the project_task field
+        const projectData = projectDoc.data();
+        const projectTasks = projectData.project_task || []; // Ensure project_task is an array
+    
+        // Find the task to update
+        const taskIndex = projectTasks.findIndex(task => task.task_id === task_id);
+    
+        if (taskIndex === -1) {
+            throw new Error(`Task with ID ${task_id} not found`);
+        }
+
+        updatedData.start_date = admin.firestore.Timestamp.fromDate(new Date(updatedData.start_date));
+        updatedData.deadline = admin.firestore.Timestamp.fromDate(new Date(updatedData.deadline));
+    
+        // Update the task
+        projectTasks[taskIndex] = { ...projectTasks[taskIndex], ...updatedData };
+    
+        // Update the Firestore document
+        await projectRef.update({
+            project_task: projectTasks
         });
+    
+        // Return the updated project document
         return projectRef.get().then(doc => doc.data());
     }
 
     static async add_employee(projectId, employeeId) {
         const projectRef = project_service.doc(projectId);
+
+        const projectData = (await projectRef.get()).data();
+
+        if (projectData.employee_list.includes(employeeId)) {
+            throw { message: "Employee already in project" };
+        }
+
         await projectRef.update({
             employee_list: admin.firestore.FieldValue.arrayUnion(employeeId)
         });
@@ -322,6 +380,31 @@ class Project {
     static async delete(projectId) {
         const projectRef = project_service.doc(projectId);
         await projectRef.delete();
+    }
+
+    static async deleteTask(projectId, taskId) {
+        const projectRef = project_service.doc(projectId);
+        const projectDoc = await projectRef.get();
+    
+        // Check if the project exists
+        if (!projectDoc.exists) {
+            throw new Error("Project not found");
+        }
+    
+        // Retrieve the project_task field
+        const projectData = projectDoc.data();
+        const projectTasks = projectData.project_task || []; // Ensure project_task is an array
+    
+        // Filter out the task with the matching taskId
+        const updatedTasks = projectTasks.filter(task => task.task_id !== taskId);
+    
+        // Update the Firestore document
+        await projectRef.update({
+            project_task: updatedTasks
+        });
+    
+        // Return the updated project document
+        return projectRef.get().then(doc => doc.data());
     }
 }
 

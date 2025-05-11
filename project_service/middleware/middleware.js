@@ -103,6 +103,7 @@ const ProjectMiddleware = {
             if (startDate > deadline) {
                 return res.status(400).json({ error: 'Start date cannot be after deadline' });
             }
+
         } catch (error) {
             return res.status(400).json({ error: 'Invalid date format' });
         }
@@ -155,15 +156,15 @@ const ProjectMiddleware = {
     // Validate Employee Existence (assuming you have a users collection)
     validateEmployee: async (req, res, next) => {
         try {
-            const employeeId = req.body.employeeId || req.params.employeeId;
-            const userRef = admin.firestore().collection('users_service').doc(employeeId);
-            const userDoc = await userRef.get();
+            const employeeId = req.params.employee_id;
+            // const userRef = admin.firestore().collection('users_service').doc(employeeId);
+            // const userDoc = await userRef.get();
 
-            if (!userDoc.exists) {
-                return res.status(404).json({ error: 'Employee not found' });
-            }
+            // if (!userDoc.exists) {
+            //     return res.status(404).json({ error: 'Employee not found' });
+            // }
 
-            req.employee = userDoc.data();
+            // req.employee = userDoc.data();
             next();
         } catch (error) {
             console.error('Employee validation error:', error);
@@ -174,7 +175,7 @@ const ProjectMiddleware = {
     checkEmployeeInProject: async (req, res, next) => {
         try {
             const projectId = req.params.projectId;
-            const employeeId = req.params.employeeId || req.body.employeeId;
+            const employeeId = req.params.employee_id || req.body.employee_id;
             
             if (!projectId || !employeeId) {
                 return res.status(400).json({ error: 'Missing project ID or employee ID' });
@@ -199,7 +200,6 @@ const ProjectMiddleware = {
 
             next();
         } catch (error) {
-            console.error('Error checking employee in project:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     },
@@ -225,12 +225,16 @@ const ProjectMiddleware = {
                 const startDate = new Date(taskData.start_date);
                 if (isNaN(startDate)) throw new Error('Invalid start date');
             }
+
+            if (taskData.start_date > taskData.deadline) {
+                return res.status(400).json({ error: 'Start date cannot be after deadline' });
+            }
         } catch (error) {
             return res.status(400).json({ error: error.message });
         }
 
         // Check if assigned employee exists in project
-        if (taskData.employeeId) {
+        if (taskData.employee_id) {
             // Use the checkEmployeeInProject middleware
             return ProjectMiddleware.checkEmployeeInProject(req, res, next);
         }
