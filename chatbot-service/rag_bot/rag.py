@@ -102,7 +102,7 @@ class RAGPipeline:
         }
 
 # Usage Example
-if __name__ == "__main__":
+
 
     # documents = [
     #     Document(page_content="Quantum computing is a type of computation that uses quantum bits (qubits).", metadata={"source": "doc1"}),
@@ -112,27 +112,22 @@ if __name__ == "__main__":
 
     # Load documents into Qdrant
     # Initialize components
-    embedding_model = Embedding().get_embeddings()
-    sparse_model = Embedding().get_sparse_embeddings()
-    qdrant_store = QdrantVectorStore("my_collection", embedding_model, sparse_model)
+embedding_model = Embedding().get_embeddings()
+sparse_model = Embedding().get_sparse_embeddings()
+qdrant_store = QdrantVectorStore("my_collection", embedding_model, sparse_model)
     # qdrant_store.add_documents(documents)
-    qdrant_client = qdrant_store.get_client()
-    reranker = ReRanker().get_reranker()
-    hybrid_search = HybridSearch(
+qdrant_client = qdrant_store.get_client()
+reranker = ReRanker().get_reranker()
+hybrid_search = HybridSearch(
         qdrant_client=qdrant_client,
         embedding_model=embedding_model,
         sparse_embedding_model=sparse_model,
         reranker=reranker
     )
    
-    load_dotenv()
+load_dotenv()
 
-    llm = GeminiLLM(os.environ["GEMINI_API_KEY"], model_name="gemini-2.0-flash").get_llm()
+llm = GeminiLLM(os.environ["GEMINI_API_KEY"], model_name="gemini-2.0-flash").get_llm()
     
     # Create pipeline
-    rag_pipeline = RAGPipeline(hybrid_search, llm)
-    
-    # Query the pipeline
-    response = rag_pipeline.generate_response("Trong trường hợp lắp đặt điện thoại cửa ở khu vực có giông bão thường xuyên, cần tuân thủ những biện pháp an toàn nào để tránh hư hỏng thiết bị?")
-    print(response["answer"]["text"])
-    # print("Sources:", response["sources"])
+rag_pipeline = RAGPipeline(hybrid_search, llm)
