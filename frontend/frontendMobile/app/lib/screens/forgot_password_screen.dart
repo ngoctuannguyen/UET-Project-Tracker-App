@@ -7,7 +7,7 @@ import 'dart:convert'; // Thêm import dart:convert
 // Định nghĩa URL API - Đảm bảo giống với LoginScreen và đúng với backend
 // Thay <ĐỊA_CHỈ_IP_CỤC_BỘ_CỦA_BẠN> bằng IP cục bộ của máy tính bạn
 // Thay 5000 bằng port backend của bạn nếu khác
-const String apiUrl = 'http://192.168.1.7:5000';
+const String apiUrl = 'http://localhost:3000';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({Key? key}) : super(key: key);

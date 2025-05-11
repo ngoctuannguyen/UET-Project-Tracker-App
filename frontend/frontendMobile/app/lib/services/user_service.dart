@@ -3,41 +3,48 @@ import 'package:app/models/user_model.dart'; // Đảm bảo import UserModel
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  // <<< SỬA: Chỉ cần đường dẫn collection chính >>>
   final String _collectionPath = 'user_service';
 
-  // <<< THÊM HÀM: Lấy UserModel dựa trên Firebase Auth UID >>>
+  /// Lấy UserModel dựa trên Firebase Auth UID (nay là Document ID).
+  ///
+  /// [authUid] chính là Document ID của người dùng trong collection 'user_service'.
   Future<UserModel?> getUserByAuthUid(String authUid) async {
+    if (authUid.isEmpty) {
+      print('Error: authUid (Document ID) cannot be empty.');
+      return null;
+    }
     try {
-      QuerySnapshot querySnapshot =
-          await _firestore
-              .collection(_collectionPath) // Query collection 'user_service'
-              .where('authUid', isEqualTo: authUid) // Query field 'authUid'
-              .limit(1)
-              .get();
+      // Truy cập trực tiếp document bằng authUid (vì authUid là Document ID)
+      DocumentSnapshot docSnapshot =
+          await _firestore.collection(_collectionPath).doc(authUid).get();
 
-      if (querySnapshot.docs.isNotEmpty) {
+      if (docSnapshot.exists) {
         // Trả về UserModel từ document tìm thấy
-        return UserModel.fromFirestore(querySnapshot.docs.first);
+        return UserModel.fromFirestore(docSnapshot);
       } else {
         print(
-          'Không tìm thấy user trong $_collectionPath với authUid: $authUid',
+          'Không tìm thấy user trong $_collectionPath với authUid (docId): $authUid',
         );
         return null;
       }
     } catch (e) {
-      print('Lỗi khi lấy user bằng authUid: $e');
+      print('Lỗi khi lấy user bằng authUid (docId) $authUid: $e');
       return null;
     }
   }
 
-  // Lấy thông tin user dựa trên field 'user_id' ('VNU1', 'VNU2', ...)
+  /// Lấy thông tin user dựa trên giá trị của field 'user_id' (ví dụ: 'VNU1', 'VNU2').
+  ///
+  /// Đây là một query dựa trên một trường cụ thể, không phải Document ID.
   Future<UserModel?> getUserByUserIdField(String userIdValue) async {
+    if (userIdValue.isEmpty) {
+      print('Error: userIdValue for field query cannot be empty.');
+      return null;
+    }
     try {
-      // <<< SỬA: Query trực tiếp trên collection _collectionPath >>>
       QuerySnapshot querySnapshot =
           await _firestore
-              .collection(_collectionPath) // Query collection 'user_service'
+              .collection(_collectionPath)
               .where('user_id', isEqualTo: userIdValue) // Query field 'user_id'
               .limit(1)
               .get();
@@ -51,44 +58,39 @@ class UserService {
         return null;
       }
     } catch (e) {
-      print('Error fetching user by user_id field: $e');
+      print('Error fetching user by user_id field $userIdValue: $e');
       return null;
     }
   }
 
-  // <<< THÊM HÀM: Lấy UserModel dựa trên Document ID ('user1', 'user2') >>>
+  /// Lấy UserModel dựa trên Document ID.
+  ///
+  /// Với cấu trúc mới,  sẽ chính là `authUid`.
+  /// Hàm này có logic tương tự như `getUserByAuthUid` và có thể được coi là một alias.
   Future<UserModel?> getUserByDocId(String docId) async {
-    try {
-      DocumentSnapshot docSnapshot =
-          await _firestore
-              .collection(_collectionPath) // Collection 'user_service'
-              .doc(docId) // Lấy document bằng ID ('user1', 'user2')
-              .get();
-
-      if (docSnapshot.exists) {
-        return UserModel.fromFirestore(docSnapshot);
-      } else {
-        print(
-          'User not found with docId: $docId in collection $_collectionPath',
-        );
-        return null;
-      }
-    } catch (e) {
-      print('Error fetching user by docId: $e');
+    if (docId.isEmpty) {
+      print('Error: docId cannot be empty.');
       return null;
     }
+    // Logic này giống hệt getUserByAuthUid vì docId chính là authUid
+    return getUserByAuthUid(docId);
   }
 
-  // Cập nhật thông tin user dựa trên Document ID ('user1', 'user2', ...)
+  /// Cập nhật thông tin user dựa trên Document ID.
+  ///
+  /// Với cấu trúc mới, [docIdToUpdate] sẽ chính là `authUid`.
   Future<bool> updateUser(
-    String docIdToUpdate,
+    String docIdToUpdate, // Đây chính là authUid
     Map<String, dynamic> data,
   ) async {
+    if (docIdToUpdate.isEmpty) {
+      print('Error: docIdToUpdate (authUid) cannot be empty for update.');
+      return false;
+    }
     try {
-      // <<< SỬA: Update trực tiếp document trong collection _collectionPath >>>
       await _firestore
-          .collection(_collectionPath) // Collection 'user_service'
-          .doc(docIdToUpdate) // Sử dụng Document ID ('user1', 'user2')
+          .collection(_collectionPath)
+          .doc(docIdToUpdate) // Sử dụng Document ID (chính là authUid)
           .update(data);
       print('User updated successfully (docId: $docIdToUpdate)');
       return true;
