@@ -106,13 +106,11 @@ def get_client(embedding, spare_embedding, collection_name="my_collection"):
 def load_document_into_qdrant(documents, qdrant_store, collection_name="my_collection"):
     qdrant_store.add_documents(documents)
 
-if __name__ == "__main__":
-    folder = "C:/Chat-App"  # thư mục chứa PDF/DOCX
-    embedding_model = Embedding().get_embeddings()
-    sparse_model = Embedding().get_sparse_embeddings()
-    qdrant_store = QdrantVectorStore(collection_name="my_collection", embeddings=embedding_model, sparse_embeddings=sparse_model)
-    chunked_docs = agentic_chunk_folder(folder)
-    print(chunked_docs)
-    # print(f"✅ Đã chunk {len(chunked_docs)} đoạn.")
-    # load_document_into_qdrant(chunked_docs, qdrant_store)
+embedding_model = Embedding().get_embeddings()
+sparse_model = Embedding().get_sparse_embeddings()
+qdrant_store = QdrantVectorStore(collection_name="my_collection", embeddings=embedding_model, sparse_embeddings=sparse_model)
+    # chunked_docs = agentic_chunk_folder(folder)
+    # print(chunked_docs)
+    # # print(f"✅ Đã chunk {len(chunked_docs)} đoạn.")
+    # # load_document_into_qdrant(chunked_docs, qdrant_store)
 
