@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb; // <<< THÊM IMPORT NÀY
 import 'package:flutter/material.dart';
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
@@ -6,17 +7,16 @@ import 'package:app/screens/camera_screen.dart';
 import 'package:app/screens/report_screen.dart';
 import 'package:app/screens/chatbot_screen.dart';
 import 'package:app/screens/settings_screen.dart';
-import 'package:app/models/user_model.dart'; // <<< THÊM: Import UserModel
+import 'package:app/models/user_model.dart';
 
 class ImageSearchResultScreen extends StatefulWidget {
   final String imagePath;
-  // <<< THÊM: Nhận currentUser (có thể null) >>>
   final UserModel? currentUser;
 
   const ImageSearchResultScreen({
     Key? key,
     required this.imagePath,
-    this.currentUser, // Thêm vào constructor
+    this.currentUser,
   }) : super(key: key);
 
   @override
@@ -38,7 +38,6 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
     _performImageSearch();
   }
 
-  // Hàm gọi API tìm kiếm ảnh (giả lập)
   Future<void> _performImageSearch() async {
     if (!mounted) return;
     setState(() {
@@ -47,9 +46,8 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
     });
 
     try {
-      await Future.delayed(const Duration(seconds: 2)); // Giả lập độ trễ mạng
-      // TODO: Thay thế bằng logic gọi API thực tế
-      final result = "Tìm thấy đối tượng X tại vị trí Y"; // Kết quả giả lập
+      await Future.delayed(const Duration(seconds: 2));
+      final result = "Tìm thấy đối tượng X tại vị trí Y";
       if (mounted) {
         setState(() {
           _searchResult = result;
@@ -75,14 +73,12 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
 
   @override
   void dispose() {
-    // Không có controller nào cần dispose trong ví dụ này
     super.dispose();
   }
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
 
-    // Kiểm tra currentUser trước khi điều hướng đến các màn hình yêu cầu đăng nhập
     if (widget.currentUser == null && index != 2) {
       print(
         "Lỗi: currentUser là null, không thể điều hướng đến màn hình khác ngoài Camera.",
@@ -96,9 +92,8 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
       return;
     }
 
-    // Điều hướng bằng pushReplacement
     switch (index) {
-      case 0: // Home
+      case 0:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -107,7 +102,7 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
           ),
         );
         break;
-      case 1: // Nhóm
+      case 1:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -118,8 +113,7 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
           ),
         );
         break;
-      case 2: // Camera
-        // Quay lại màn hình Camera, truyền lại currentUser (có thể null)
+      case 2:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -128,7 +122,7 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
           ),
         );
         break;
-      case 3: // Chat Bot
+      case 3:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -138,7 +132,7 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
           ),
         );
         break;
-      case 4: // Settings
+      case 4:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -165,7 +159,6 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 30),
           onPressed: () {
-            // Quay lại CameraScreen, truyền lại currentUser
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -178,7 +171,10 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
         ),
         title: const Text(
           'Kết quả',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+          ), // Đổi màu chữ tiêu đề cho dễ nhìn
         ),
         centerTitle: true,
         automaticallyImplyLeading: false,
@@ -267,19 +263,59 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(10.0),
-                    child: Image.file(
-                      File(widget.imagePath),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Center(
-                          child: Icon(
-                            Icons.error_outline,
-                            color: Colors.redAccent,
-                            size: 50,
-                          ),
-                        );
-                      },
-                    ),
+                    // <<< THAY ĐỔI LOGIC HIỂN THỊ ẢNH TẠI ĐÂY >>>
+                    child:
+                        kIsWeb
+                            ? Image.network(
+                              // Sử dụng Image.network cho Web
+                              widget.imagePath,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                print("Lỗi tải ảnh từ network (web): $error");
+                                return const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline,
+                                        color: Colors.redAccent,
+                                        size: 40,
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Lỗi tải ảnh (Web)',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            )
+                            : Image.file(
+                              // Sử dụng Image.file cho Mobile
+                              File(widget.imagePath),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                print("Lỗi tải ảnh từ file (mobile): $error");
+                                return const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline,
+                                        color: Colors.redAccent,
+                                        size: 40,
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Lỗi tải ảnh (Mobile)',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                   ),
                 ),
                 const SizedBox(height: 25),
@@ -330,14 +366,13 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
                       ),
                     ),
                     onPressed: () {
-                      // <<< SỬA: Truyền currentUser sang ReportScreen >>>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder:
                               (context) => ReportScreen(
                                 imagePath: widget.imagePath,
-                                // currentUser: widget.currentUser, // TODO: Add currentUser to ReportScreen if needed
+                                // currentUser: widget.currentUser, // TODO: Cân nhắc truyền currentUser nếu ReportScreen cần
                               ),
                           settings: const RouteSettings(name: '/report'),
                         ),
