@@ -1,34 +1,48 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import axios from "axios";
+import { useAuth } from "@/context/AuthContext"; // Đảm bảo đường dẫn chính xác
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { login } = useAuth(); // Lấy hàm login từ AuthContext
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
-    if (!email.includes("@") || password.length < 4) {
-      toast.error("Invalid email or password");
-      return;
-    }
+    try {
+      if (!email.includes("@") || password.length < 4) {
+        toast.error("Invalid email or password");
+        return;
+      }
 
-    // 🧪 Tạm thời: nếu email chứa "admin", gán role là admin
-    const role = email.includes("admin") ? "admin" : "user";
+      // 🧪 Tạm thời: nếu email chứa "admin", gán role là admin
+      const role = email.includes("admin") ? "admin" : "user";
 
-    // Giả lập lưu token & role
-    localStorage.setItem("token", "fake-token-123");
-    localStorage.setItem("role", role);
+      // Gửi yêu cầu đăng nhập
+      const response = await axios.post("/auth/login", { email, password });
 
-    toast.success("Login successful!");
+      const { idToken, refreshToken, userData } = response.data;
 
-    // 👉 Điều hướng theo role
-    if (role === "admin") {
-      navigate("/admin");
-    } else {
-      navigate("/");
+      console.log(idToken, " ", refreshToken, " ", userData);
+  
+      // Lưu trạng thái người dùng vào Context
+      login(idToken, refreshToken, userData);
+  
+      toast.success("Login successful!")  
+
+      // Điều hướng theo role
+      if (role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/");
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error(error.response?.data?.error || "Login failed");
     }
   };
 
@@ -69,11 +83,6 @@ const LoginPage = () => {
           className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
           Login
-        </button>
-        <button
-          className="w-full mt-4 py-2 border rounded-lg hover:bg-gray-300 transition"
-        >
-          Forgot password
         </button>
       </form>
     </div>
