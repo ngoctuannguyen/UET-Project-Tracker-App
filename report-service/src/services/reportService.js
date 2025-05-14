@@ -83,4 +83,57 @@ const scanBarcodeFromImage = async (imagePath) => {
   }
 };
 
-module.exports = {submitReport, scanBarcodeFromImage,getReportsByComponentId,deleteReport, deleteReportbyComponentId };
+const updateStatus = async (componentCode, status) => {
+
+  try {
+    // Tìm component theo componentCode
+    const component = await Component.findOne({ where: { componentCode } });
+    if (!component) return { success: false, message: 'Component not found' };
+    // Cập nhật trạng thái
+    if (status === 'completed') {
+       component.is_completed = 1;
+    }
+    await component.save();
+    return { success: true, message: 'Component status updated successfully' };
+  }
+  catch (error) {
+    console.error('Error updating component status:', error);
+    return { success: false, message: error.message };
+  }
+}
+
+const updateProgress = async (componentCode) => {
+  try {
+    const component = await Component.findOne({ where: { componentCode } });
+    if (!component) throw new Error('Component not found');
+
+    const productCode = component.productCode;
+
+    const allComponents = await Component.findAll({ where: { productCode } });
+    const total = allComponents.length;
+
+    if (!total) throw new Error('No components found for product');
+
+    // Đếm số component đã hoàn thành
+    const completedCount = allComponents.filter(c => c.is_completed).length;
+    console.log(`Total components: ${total}, Completed components: ${completedCount}`);
+    // Tính progress chính xác
+    const progress = Math.round((completedCount / total) * 100);
+
+    // Cập nhật product
+    const product = await Product.findOne({ where: { productCode } });
+    if (!product) throw new Error('Product not found');
+
+    await product.update({ progress });
+
+    console.log(`Progress for product ${productCode} updated to ${progress}%`);
+    return { success: true, progress };
+  } catch (error) {
+    console.error('Error updating progress:', error.message);
+    return { success: false, message: error.message };
+  }
+};
+
+
+
+module.exports = {submitReport, scanBarcodeFromImage,getReportsByComponentId,deleteReport, deleteReportbyComponentId,updateProgress,updateStatus};

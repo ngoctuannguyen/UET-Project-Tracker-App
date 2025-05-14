@@ -12,6 +12,7 @@
     "license": "ISC",
     "dependencies": {
         "@zxing/library": "^0.21.3",
+        "amqplib": "^0.10.8",
         "axios": "^1.7.9",
         "canvas": "^3.1.0",
         "cors": "^2.8.5",
