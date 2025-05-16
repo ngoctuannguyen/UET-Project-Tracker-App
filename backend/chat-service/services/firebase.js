@@ -1,30 +1,21 @@
 const admin = require("firebase-admin");
+// Đảm bảo đường dẫn đến file service account là chính xác
 const serviceAccount = require("../service_account/firebase-service-account.json");
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+
+// Khởi tạo Firebase Admin SDK chỉ một lần
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+  console.log("Firebase Admin SDK Initialized successfully in chat-service.");
+} else {
+  console.log("Firebase Admin SDK already initialized in chat-service.");
+}
 
 const db = admin.firestore();
-// const { chat_service } = db.collection('chat_service');
-const chat_service = db.collection("chat_service");
 
-// Retrieve all documents from the groupsCollection
-// async function getGroups() {
-//     try {
-//         const snapshot = await groupsCollection.get();
-//         if (snapshot.empty) {
-//             console.log('No groups found.');
-//             return [];
-//         }
+// Đổi tên biến để tránh trùng lặp và export đúng tên mà model đang sử dụng
+const chat_service_ref = db.collection("chat_service"); // Giả sử collection của bạn tên là "chat_service"
 
-//         // const groups = [];
-//         const groups = snapshot.data();
-
-//         return groups;
-//     } catch (error) {
-//         console.error('Error fetching groups:', error);
-//         throw error;
-//     }
-// }
-
-module.exports = { db, chat_service };
+module.exports = { db, chat_service: chat_service_ref, admin }; // Export 'chat_service' và 'admin'
+// ...existing code...
