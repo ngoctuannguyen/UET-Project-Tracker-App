@@ -7,6 +7,7 @@ const {
   checkEmailExists,
   getCurrentUser,
   getUserByUid,
+  getUserProfile
 } = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -18,6 +19,7 @@ router.post("/login", loginUser); // API đăng nhập người dùng thường
 router.post("/admin/login", adminLogin); // API đăng nhập cho quản lý
 router.post("/check-email", checkEmailExists); // API kiểm tra sự tồn tại của email
 router.post("/forgot-password", forgotPassword); // API quên mật khẩu
+router.get("/user/profile", getUserProfile);
 
 // --- Các route yêu cầu xác thực (sử dụng authMiddleware) ---
 // router.get("/getUser", authMiddleware, getCurrentUser); // API lấy thông tin người dùng đang đăng nhập
