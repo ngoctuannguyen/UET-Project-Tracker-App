@@ -1,48 +1,69 @@
-// filepath: d:\UET-Project-Tracker-App\backend\chat-service\routes\chatRoutes.js
 const express = require("express");
 const router = express.Router();
 const chatController = require("../controllers/chat_controller");
 const validateMessage = require("../middlewares/validateMessage");
 const validateGroup = require("../middlewares/validateGroup");
+const authMiddleware = require("../middlewares/authMiddleware"); // <<< THÊM DÒNG NÀY
 
 // Group routes
-router.post("/groups", validateGroup, chatController.createGroup); // POST cần validate
+// Tất cả các API liên quan đến group và message đều cần xác thực người dùng
+router.post(
+  "/groups",
+  authMiddleware,
+  validateGroup,
+  chatController.createGroup
+);
 router.put(
   "/groups/:groupId/members",
-  validateGroup,
+  authMiddleware,
   chatController.addGroupMember
-); // PUT cần validate
-router.get("/groups/:groupId", chatController.getGroupById); // GET không cần validate body
-router.get("/users/:userId/groups", chatController.getUserGroups); // GET không cần validate body
+); // validateGroup có thể không cần ở đây hoặc cần middleware riêng
+router.get("/groups/:groupId", authMiddleware, chatController.getGroupById);
+// Đảm bảo :userId trong route này được so sánh với req.user.uid trong controller để bảo mật
+router.get(
+  "/users/:userId/groups",
+  authMiddleware,
+  chatController.getUserGroups
+);
 router.put(
   "/groups/:groupId/admins",
-  validateGroup,
+  authMiddleware,
   chatController.addGroupAdmin
-); // PUT cần validate
+);
 router.delete(
   "/groups/:groupId/admins",
-  validateGroup,
+  authMiddleware,
   chatController.removeGroupAdmin
-); // DELETE cần validate
-router.delete("/groups/:groupId", validateGroup, chatController.removeGroup); // DELETE cần validate
+);
+router.delete("/groups/:groupId", authMiddleware, chatController.removeGroup);
 router.delete(
   "/groups/:groupId/members",
-  validateGroup,
+  authMiddleware,
   chatController.removeGroupMember
-); // DELETE cần validate
-router.get("/groups", chatController.getAllGroups); // GET không cần validate body
-router.get("/groups/:groupId/members", chatController.getGroupMembers); // GET không cần validate body
+);
+router.get("/groups", authMiddleware, chatController.getAllGroups); // Cân nhắc nếu route này thực sự cần thiết và ai có quyền truy cập
+router.get(
+  "/groups/:groupId/members",
+  authMiddleware,
+  chatController.getGroupMembers
+);
 
-// Message routes
-router.post("/messages", validateMessage, chatController.sendMessage); // POST cần validate
-// Bỏ validateMessage cho GET messages, có thể thêm middleware kiểm tra quyền truy cập sau
-router.get("/groups/:groupId/messages", chatController.getGroupMessages);
-// Thêm yêu cầu groupId vào query cho DELETE và PUT
-router.delete("/messages/:messageId", chatController.deleteMessage); // Validate có thể thêm sau nếu cần
-router.put(
-  "/messages/:messageId",
+// Message routes (Thêm nếu chưa có)
+// Route để gửi tin nhắn vào một group
+router.post(
+  "/groups/:groupId/messages",
+  authMiddleware,
   validateMessage,
-  chatController.updateMessage
-); // PUT cần validate body (text)
+  chatController.sendMessage
+);
+// Route để lấy tất cả tin nhắn của một group
+router.get(
+  "/groups/:groupId/messages",
+  authMiddleware,
+  chatController.getGroupMessages
+);
+// Các route khác cho message (update, delete) nếu có cũng cần authMiddleware
+// router.put("/groups/:groupId/messages/:messageId", authMiddleware, validateMessage, chatController.updateMessage);
+// router.delete("/groups/:groupId/messages/:messageId", authMiddleware, chatController.deleteMessage);
 
 module.exports = router;
