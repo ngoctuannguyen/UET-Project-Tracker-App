@@ -13,7 +13,8 @@ const ProjectProgress = () => {
   const [filter, setFilter] = useState("not done");
   const [createVisible, setCreateVisible] = useState(false);
   const [visibleCount, setVisibleCount] = useState(5);
-  const [editTask, setEditTask] = useState(false); // State cho task đang chỉnh sửa
+  const [editTask, setEditTask] = useState([]);
+  const [editStatus, setEditStatus] = useState(false); // State cho task đang chỉnh sửa
 
   if (!project) {
     return <div className="p-6 text-red-500">Project not found</div>;
@@ -41,37 +42,9 @@ const ProjectProgress = () => {
     return t.status !== "done";
   });
 
-  const handleTaskUpdate = async (updatedTask) => {
-    try {
-      await axios.put(`/api/projects/${project.project_id}/tasks/${updatedTask.task_id}`, updatedTask);
-      fetchProject();
-    } catch (error) {
-      toast.error("Error updating task:", error);
-    }
-  };
-
-  const handleTaskCreate = async (newTask) => {
-    try {
-      await axios.post()
-    } catch (error) {
-      toast.error("Error creating task: ", error)
-    }
-  };
-
   const handleSeeMore = () => {
     setVisibleCount((prev) => Math.min(prev + 5, filteredTasks.length));
-  };
-
-  const handleDeleteTask = async (taskId) => {
-    try {
-      await axios.delete(`/api/projects/${project.project_id}/tasks/${taskId}`);
-      fetchProject();
-      toast.success("Task deleted successfully");
-    } catch (error) {
-      toast.error("Failed to delete task");
-      console.error("Delete error:", error);
-    }
-  };
+  }
 
   return (
     <div className="p-6 flex flex-col h-full">
@@ -131,9 +104,15 @@ const ProjectProgress = () => {
             className="bg-white p-4 rounded-lg shadow flex justify-between items-center group hover:shadow-md transition-shadow"
           >
             <div className="flex-1">
-              <h3 className="font-semibold mb-1">{task.work_description}</h3>
-              <p className="text-gray-500 text-sm">Assign to: {task.employee_id}</p>
-            </div>
+            <h3 className="font-semibold mb-1">{task.work_description}</h3>
+            <p
+              className={`text-sm ${
+                task.employee_id ? "text-gray-500" : "text-red-500"
+              }`}
+            >
+              Assign to: {task.employee_id || "No employee assigned"}
+            </p>
+          </div>
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end">
                 <p className="text-gray-400 text-sm">
@@ -150,7 +129,7 @@ const ProjectProgress = () => {
                 </span>
               </div>
               <button
-                onClick={() => setEditTask(task)}
+                onClick={() => {setEditTask(task), setEditStatus(true)}}
                 className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity"
                 title="Edit task"
               >
@@ -181,23 +160,21 @@ const ProjectProgress = () => {
       </div>
 
       {/* Edit Task Overlay */}
-      {editTask && (
-      <TaskEditOverlay
-        task={editTask}
-        project={project}
-        onClose={() => setEditTask(null)}
-        onSave={handleTaskUpdate}
-        onDelete={handleDeleteTask} // Thêm prop này
-      />)}
+      {editStatus && (
+        <TaskEditOverlay
+          task={editTask}
+          projectId={project.project_id}
+          onClose={() => setEditStatus(false)}
+          fetchProject={fetchProject} // Pass fetchProject to refresh data
+        />
+      )}
 
       {/* Create Task Overlay */}
       {createVisible && (
-        <TaskCreateOverlay
-          onClose={() => setCreateVisible(false)}
-          project={project}
-          onSave={handleTaskCreate}
-        />
-      )}
+      <TaskCreateOverlay
+        onClose={() => setCreateVisible(false)}
+        projectId={project.project_id}
+      />)}
     </div>
   );
 };

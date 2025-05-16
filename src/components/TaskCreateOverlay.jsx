@@ -3,31 +3,38 @@ import React, { useState } from "react";
 import { toast } from "sonner";
 import axios from "axios";
 
-const TaskCreateOverlay = ({ onClose, taskToEdit }) => {
+const TaskCreateOverlay = ({ onClose, projectId }) => {
   const [taskTitle, setTaskTitle] = useState("");
   const [assignee, setAssignee] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [workDescription, setWorkDescription] = useState("");
 
-  const handleCreateTask = () => {
-    if (!taskTitle || !assignee || !dueDate) {
+  const handleCreateTask = async () => {
+    if (!taskTitle || !assignee || !dueDate || !startDate) {
       toast.error("Please fill in all fields");
       return;
     }
-
-    // try {
-    //   axios.post(`/api/projects/${project.project_id}/tasks`)
-    // } catch (error) {
-    //   toast.error("Error creating task: ", error);
-    // }
-
-    // TODO: Gửi task mới vào database (hiện tại mình sẽ chỉ toast để demo)
-    toast.success("Task created successfully!");
-
-    // Sau khi tạo xong → đóng overlay
-    onClose();
+  
+    try {
+      // Prepare the request body
+      const requestBody = {
+        work_description: taskTitle,
+        employee_id: assignee,
+        deadline: dueDate,
+        start_date: startDate
+      };
+  
+      // Send the POST request with the request body
+      await axios.post(`/api/projects/${projectId}`, requestBody)
+      toast.success("Task created successfully!");
+      onClose(); // Close the overlay after successful creation
+    } catch (error) {
+      console.error("Error creating task:", error);
+      const errorMessage =
+        error.response?.data?.message || "An error occurred while creating the task.";
+      toast.error(errorMessage);
+    }
   };
-
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-8 w-full max-w-lg shadow-lg relative">
@@ -68,8 +75,8 @@ const TaskCreateOverlay = ({ onClose, taskToEdit }) => {
             <label className="block mb-1 text-sm font-medium text-gray-700">Due Date</label>
             <input
               type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
               className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>
@@ -77,9 +84,9 @@ const TaskCreateOverlay = ({ onClose, taskToEdit }) => {
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">Work Description</label>
             <input
-              type="work_description"
-              value={workDescription}
-              onChange={(e) => setWorkDescription(e.target.value)}
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
               className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>

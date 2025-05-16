@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import PropTypes from "prop-types";
+import { toast } from "sonner";
 
 const ProjectsTable = ( { projects, onRowClick }) => {
   const [visibleCount, setVisibleCount] = useState(5);
@@ -34,10 +35,10 @@ const ProjectsTable = ( { projects, onRowClick }) => {
                   <td className="py-3 px-5 border-b">{index + 1}</td>
                   <td className="py-3 px-5 border-b">{project.name}</td>
                   <td className="py-3 px-5 border-b">{project.lead}</td>
-                  <td className="py-3 px-5 border-b">{project.progress}%</td>
+                  <td className="py-3 px-5 border-b">{project.progress != null ? project.progress : 0}%</td>
                   <td className="py-3 px-5 border-b">{project.status}</td>
                   <td className="py-3 px-5 border-b">
-                    {project.dueDate ? new Date(project.dueDate).toLocaleDateString() : "N/A"}
+                    {project.dueDate}
                   </td>
                 </tr>
               ))
