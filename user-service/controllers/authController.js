@@ -63,10 +63,10 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// Đăng nhập người dùng
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
 
+  // Kiểm tra đầu vào
   if (!email || !password) {
     return res.status(400).json({ error: "Email và password là bắt buộc" });
   }
@@ -87,9 +87,9 @@ exports.loginUser = async (req, res) => {
       }
     );
 
-    const { idToken, refreshToken, localId: uid } = firebaseAuthResponse.data; // localId chính là authUid (Firebase UID)
+    const { idToken, refreshToken, localId: uid } = firebaseAuthResponse.data;
 
-    // Bước 2: Lấy thông tin người dùng từ Firestore sử dụng uid làm Document ID
+    // Bước 2: Lấy thông tin người dùng từ Firestore
     const userDocRef = firestoreService.collection("user_service").doc(uid);
     const userDoc = await userDocRef.get();
 
@@ -97,47 +97,76 @@ exports.loginUser = async (req, res) => {
     if (userDoc.exists) {
       userData = userDoc.data();
     } else {
-      // Trường hợp này có thể xảy ra nếu người dùng tồn tại trong Firebase Auth
-      // nhưng chưa có bản ghi tương ứng trong collection 'user_service'.
-      // Bạn có thể quyết định cách xử lý:
-      // 1. Trả về lỗi.
-      // 2. Trả về thông tin từ Auth và một cờ báo hiệu thiếu dữ liệu Firestore.
-      // 3. Tự động tạo bản ghi Firestore (cần thêm thông tin).
       console.warn(
-        `User data not found in Firestore for UID (docId): ${uid} after login. User exists in Firebase Auth.`
+        `Không tìm thấy dữ liệu người dùng trong Firestore cho UID: ${uid}.`
       );
-      // Ví dụ: trả về thông tin cơ bản từ Auth nếu không có trong Firestore
-      // userData = { email: email, uid: uid, firestoreDataMissing: true };
+      return res.status(404).json({
+        error: "Không tìm thấy dữ liệu người dùng. Vui lòng liên hệ quản trị viên.",
+      });
     }
 
+    // Lưu token vào httpOnly cookies
+    res.cookie("idToken", idToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // Chỉ gửi qua HTTPS trong môi trường production
+      sameSite: "Strict", // Ngăn chặn CSRF
+      maxAge: 3600000, // 1 giờ
+    });
+
+    // Bước 3: Trả về thông tin người dùng và token
     res.status(200).json({
       message: "Đăng nhập thành công",
       idToken,
       refreshToken,
-      uid, // uid (authUid) giờ là docId
-      userData, // Trả về dữ liệu người dùng từ Firestore (có thể null nếu không tìm thấy)
+      uid,
+      userData,
     });
   } catch (error) {
     // Xử lý lỗi từ Firebase Authentication
     if (error.response && error.response.data && error.response.data.error) {
       const firebaseErrorMessage = error.response.data.error.message;
-      if (
-        firebaseErrorMessage === "INVALID_LOGIN_CREDENTIALS" ||
-        firebaseErrorMessage === "EMAIL_NOT_FOUND" ||
-        firebaseErrorMessage === "INVALID_PASSWORD" // Các mã lỗi cũ hơn, INVALID_LOGIN_CREDENTIALS là mã mới hơn
-      ) {
-        return res
-          .status(401)
-          .json({ error: "Email hoặc mật khẩu không chính xác." });
+
+      // Xử lý các lỗi cụ thể từ Firebase
+      switch (firebaseErrorMessage) {
+        case "INVALID_LOGIN_CREDENTIALS":
+        case "EMAIL_NOT_FOUND":
+        case "INVALID_PASSWORD":
+          return res
+            .status(401)
+            .json({ error: "Email hoặc mật khẩu không chính xác." });
+        default:
+          return res.status(400).json({ error: firebaseErrorMessage });
       }
-      // Các lỗi khác từ Firebase Auth
-      return res.status(400).json({ error: firebaseErrorMessage });
     }
-    // Các lỗi không mong muốn khác
+
+    // Xử lý các lỗi không mong muốn khác
     console.error("Lỗi đăng nhập người dùng:", error);
     res.status(500).json({ error: "Đã xảy ra lỗi trong quá trình đăng nhập." });
   }
 };
+
+// User state check
+exports.getUserProfile = async (req, res) => {
+  const idToken = req.cookies.idToken;
+
+  if (!idToken) {
+    return res.status(401).json({ error: "Người dùng chưa đăng nhập." });
+  }
+
+  try {
+    // Xác thực token với Firebase
+    const decodedToken = await axios.post(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.FIREBASE_API_KEY}`,
+      { idToken }
+    );
+
+    const user = decodedToken.data.users[0];
+    res.status(200).json({ user });
+  } catch (error) {
+    res.status(401).json({ error: "Token không hợp lệ hoặc đã hết hạn." });
+  }
+};
+
 //________________________________________________________________________________
 //forgot pass:
 
