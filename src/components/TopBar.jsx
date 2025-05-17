@@ -135,22 +135,21 @@ const TopBar = ({ projects, fetchSuggestions }) => {
         )}
       </div>
 
-      {/* <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4">
         <button
           onClick={() => navigate("/chat-group")}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative group"
         >
           <Users className="w-5 h-5 text-gray-600" />
-          <span className="tooltip">Group Chat</span>
-        </button> */}
-        {/* <button
+          {/* <span className="tooltip">Group Chat</span> */}
+        </button>
+        <button
           onClick={() => navigate("/chat-ai")}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative group"
         >
           <Bot className="w-5 h-5 text-gray-600" />
-          <span className="tooltip">AI Assistant</span>
-        </button> */}
-      {/* </div> */}
+        </button>
+      </div>
     </div>
   );
 };
