@@ -3,8 +3,9 @@ import { Input } from "@/components/ui/input";
 import { Users, Bot, Search, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { debounce } from "lodash";
+import Fuse from "fuse.js";
 
-const TopBar = ({ projects, fetchSuggestions }) => {
+const TopBar = ({ fetchSuggestions, projects }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -13,16 +14,22 @@ const TopBar = ({ projects, fetchSuggestions }) => {
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
+  const fuse = React.useMemo(() => new Fuse(projects || [], {
+    keys: ["project_name"],
+    threshold: 0.4, // Độ chính xác, càng nhỏ càng khắt khe
+  }), [projects]);
+
   // Debounce search requests
   const debouncedSearch = debounce(async (query) => {
     if (query.length > 0) {
       setIsLoading(true);
-      try {
-        const results = await fetchSuggestions(query);
-        setSuggestions(results);
-      } catch (error) {
-        console.error("Search failed:", error);
+      let results = [];
+      if (projects && projects.length > 0) {
+        results = fuse.search(query).map(res => res.item);
+      } else if (typeof fetchSuggestions === "function") {
+        results = await fetchSuggestions(query);
       }
+      setSuggestions(results);
       setIsLoading(false);
     }
   }, 300);
@@ -74,7 +81,7 @@ const TopBar = ({ projects, fetchSuggestions }) => {
   const handleSelect = (item) => {
     setSearchTerm("");
     setSuggestions([]);
-    navigate(`/projects/${item.id}`);
+    navigate(`/project/${item.project_id}`);
   };
 
   return (
@@ -83,7 +90,7 @@ const TopBar = ({ projects, fetchSuggestions }) => {
         <div className="relative">
           <Input
             ref={inputRef}
-            placeholder="Search projects, tags, users..."
+            placeholder="Search projects"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -95,10 +102,11 @@ const TopBar = ({ projects, fetchSuggestions }) => {
           )}
         </div>
 
-        {suggestions.length > 0 && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl">
-            <ul className="max-h-[280px] overflow-y-auto">
-              {suggestions.map((item, index) => (
+        {(suggestions.length > 0 || (searchTerm && !isLoading)) && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl">
+          <ul className="max-h-[280px] overflow-y-auto">
+            {suggestions.length > 0 ? (
+              suggestions.map((item, index) => (
                 <li
                   key={item.id}
                   onClick={() => handleSelect(item)}
@@ -116,23 +124,22 @@ const TopBar = ({ projects, fetchSuggestions }) => {
                     )}
                     <div className="flex-1">
                       <div className="font-medium text-gray-800">
-                        {highlightMatch(item.name)}
-                      </div>
-                      <div className="text-sm text-gray-500 flex items-center gap-2">
-                        <span>ID: {item.id}</span>
-                        {item.tags?.map(tag => (
-                          <span key={tag} className="px-2 py-1 bg-gray-100 rounded-full text-xs">
-                            {tag}
-                          </span>
-                        ))}
+                        {highlightMatch(item.project_name)}
                       </div>
                     </div>
                   </div>
                 </li>
-              ))}
-            </ul>
-          </div>
-        )}
+              ))
+            ) : (
+              searchTerm && !isLoading && (
+                <li className="px-4 py-3 text-gray-500 text-center select-none">
+                  No search result
+                </li>
+              )
+            )}
+          </ul>
+        </div>
+      )}
       </div>
 
       <div className="flex items-center gap-4">

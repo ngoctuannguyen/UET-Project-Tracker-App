@@ -18,53 +18,55 @@ import NotFoundPage from "@/pages/NotFoundPage";
 import PrivateRoute from "@/components/PrivateRoute"; // bảo vệ route thường
 import AdminRoute from "@/components/AdminRoute";
 import { AuthProvider } from "./context/AuthContext";
-
+import { ProjectsProvider } from './context/ProjectsContext';
 
 const App = () => {
   return (
     <AuthProvider>
-      <Router>
-        <Toaster />
-        <Routes>
-          {/* Trang đăng nhập không có layout */}
-          <Route path="/login" element={<LoginPage />} />
+      <ProjectsProvider>
+          <Router>
+            <Toaster />
+            <Routes>
+              {/* Trang đăng nhập không có layout */}
+              <Route path="/login" element={<LoginPage />} />
 
-          {/* Route admin riêng biệt */}
-          <Route
-            path="/admin"
-            element={
-              <AdminRoute>
-                <AdminPage />
-              </AdminRoute>
-            }
-          />
+              {/* Route admin riêng biệt */}
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <AdminPage />
+                  </AdminRoute>
+                }
+              />
 
-          {/* Các route người dùng thường dùng layout */}
-          <Route
-            element={
-              <PrivateRoute>
-                <Layout />
-              </PrivateRoute>
-            }
-          >
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/project-management" element={<ProjectManagementPage />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/chat-group" element={<ChatGroupPage />} />
-            <Route path="/chat-ai" element={<ChatAIPage />} />
+              {/* Các route người dùng thường dùng layout */}
+              <Route
+                element={
+                  <PrivateRoute>
+                    <Layout />
+                  </PrivateRoute>
+                }
+              >
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/project-management" element={<ProjectManagementPage />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/chat-group" element={<ChatGroupPage />} />
+                <Route path="/chat-ai" element={<ChatAIPage />} />
 
-            <Route path="/project/:id" element={<ProjectDetailPage />}>
-              <Route index element={<ProjectProgress />} />
-              <Route path="project-analysis" element={<ProjectAnalysis />} />
-              <Route path="people-on-this-project" element={<PeopleOnThisProject />} />
-              <Route path="project-description" element={<ProjectDescription />} />
-            </Route>
-          </Route>
+                <Route path="/project/:id" element={<ProjectDetailPage />}>
+                  <Route index element={<ProjectProgress />} />
+                  <Route path="project-analysis" element={<ProjectAnalysis />} />
+                  <Route path="people-on-this-project" element={<PeopleOnThisProject />} />
+                  <Route path="project-description" element={<ProjectDescription />} />
+                </Route>
+              </Route>
 
-          {/* Route 404 */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </Router>
+              {/* Route 404 */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Router>
+      </ProjectsProvider>
     </AuthProvider>
   );
 };
