@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/camera_screen.dart';
-import 'package:app/screens/chatbot_screen.dart';
+// import 'package:app/screens/chatbot_screen.dart'; // Bỏ comment nếu bạn có màn hình này
 import 'package:app/screens/settings_screen.dart';
 import 'package:app/screens/chat_screen.dart';
 import 'package:app/models/user_model.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:app/services/auth_service.dart'; // <<< THÊM: Import AuthService
+import 'package:app/screens/login_screen.dart'; // <<< THÊM: Import LoginScreen để điều hướng nếu token hết hạn
 
 // Cấu trúc thông tin nhóm chat để hiển thị
 class GroupChatDisplayInfo {
-  final String id; // group_id từ backend
-  final String name; // group_name từ backend
-  final String lastMessage; // Có thể thêm nếu API trả về
-  final String time; // Có thể thêm nếu API trả về
-  final IconData icon; // Icon tùy chọn
+  final String id;
+  final String name;
+  final String lastMessage;
+  final String time;
+  final IconData icon;
 
   GroupChatDisplayInfo({
     required this.id,
@@ -26,10 +28,8 @@ class GroupChatDisplayInfo {
 
   factory GroupChatDisplayInfo.fromJson(Map<String, dynamic> json) {
     return GroupChatDisplayInfo(
-      id: json['group_id'] ?? json['id'] ?? '', // Ưu tiên group_id
+      id: json['id'] ?? '', // API của bạn trả về 'id' cho group
       name: json['group_name'] ?? json['name'] ?? 'Unnamed Group',
-      // lastMessage: json['last_message'] ?? "Chưa có tin nhắn", // Ví dụ
-      // time: json['last_message_time'] ?? "", // Ví dụ
     );
   }
 }
@@ -47,13 +47,11 @@ class FriendsListScreen extends StatefulWidget {
 class _FriendsListScreenState extends State<FriendsListScreen> {
   int _selectedIndex = 1;
 
-  // --- Configuration ---
-  // CHẠY TRÊN CHROME NÊN DÙNG localhost
-  static const String _chatServiceBaseUrl =
-      'http://localhost:3002'; // <<< PORT 3002
-  static const String _userServiceBaseUrl =
-      'http://localhost:3001'; // Giả sử user-service chạy ở port 3001
-  // ---
+  static const String _chatServiceBaseUrl = 'http://localhost:3002';
+  static const String _userServiceBaseUrl = 'http://localhost:3001';
+
+  final AuthService _authService =
+      AuthService(); // <<< THÊM: Khởi tạo AuthService
 
   List<GroupChatDisplayInfo> _groupChats = [];
   bool _isLoadingGroups = true;
@@ -70,18 +68,59 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
     _loadGroupChats();
   }
 
+  Future<void> _handleApiError(dynamic e, int? statusCode) async {
+    print('API Error: $e, Status Code: $statusCode');
+    if (mounted) {
+      String message = 'Đã xảy ra lỗi. Vui lòng thử lại.';
+      if (statusCode == 401 || statusCode == 403) {
+        message =
+            'Phiên đăng nhập hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.';
+        await _authService.deleteToken();
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (Route<dynamic> route) => false,
+        );
+      } else if (e is http.ClientException) {
+        message = 'Lỗi kết nối máy chủ. Vui lòng kiểm tra lại.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Future<void> _loadGroupChats() async {
     if (!mounted) return;
     setState(() {
       _isLoadingGroups = true;
     });
     try {
+      // <<< THÊM: Lấy token >>>
+      final String? token = await _authService.getToken();
+      if (token == null) {
+        print(
+          "Error loading groups: No auth token found. User might need to login again.",
+        );
+        if (mounted) {
+          _handleApiError("Token not found", 401); // Xử lý như lỗi 401
+        }
+        setState(() => _isLoadingGroups = false);
+        return;
+      }
+
       final url = Uri.parse(
         '$_chatServiceBaseUrl/api/users/${widget.currentUser.docId}/groups',
       );
       print("Fetching groups from: $url for user ${widget.currentUser.docId}");
 
-      final response = await http.get(url);
+      // <<< THÊM: Headers với Authorization token >>>
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
       if (!mounted) return;
 
@@ -96,35 +135,18 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
                     ),
                   )
                   .toList();
-          _isLoadingGroups = false;
         });
         print("Loaded ${_groupChats.length} groups.");
       } else {
-        print('Failed to load groups: ${response.statusCode} ${response.body}');
-        setState(() {
-          _isLoadingGroups = false;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Lỗi tải danh sách nhóm: ${response.statusCode}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        _handleApiError(response.body, response.statusCode);
       }
     } catch (e) {
-      print('Error loading groups: $e');
+      _handleApiError(e, null);
+    } finally {
       if (mounted) {
         setState(() {
           _isLoadingGroups = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi kết nối tải nhóm: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     }
   }
@@ -139,13 +161,44 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
       _dialogMembersList = [];
     });
 
+    // <<< THÊM: Lấy token >>>
+    final String? token = await _authService.getToken();
+    if (token == null) {
+      print("Error fetching group members: No auth token found.");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Lỗi xác thực. Vui lòng đăng nhập lại để xem thành viên.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      // Không hiển thị dialog nếu không có token, hoặc đóng dialog nếu đang mở
+      if (Navigator.canPop(context)) Navigator.pop(context);
+      setState(() => _isLoadingDialogMembers = false);
+      return;
+    }
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
-          // Cho phép cập nhật UI bên trong dialog
           builder: (BuildContext context, StateSetter setDialogState) {
+            // Cập nhật _isLoadingDialogMembers và _dialogMembersList bên trong dialog
+            // bằng cách gọi setDialogState khi dữ liệu thay đổi
+            // Điều này cần một chút cấu trúc lại nếu bạn muốn dialog tự cập nhật
+            // Cách đơn giản hơn là đóng và mở lại dialog, hoặc truyền callback
+            // Hiện tại, chúng ta sẽ cập nhật state của _FriendsListScreenState
+            // và dialog sẽ rebuild dựa trên state đó.
+
+            // Để dialog tự cập nhật, bạn cần quản lý state _isLoadingDialogMembers và _dialogMembersList
+            // bên trong một StatefulWidget riêng cho nội dung dialog, hoặc dùng ValueNotifier.
+            // Vì mục đích đơn giản, chúng ta sẽ dựa vào setState của _FriendsListScreenState.
+            // Khi _fetchAndShowGroupMembers hoàn thành, nó sẽ gọi setState và dialog sẽ rebuild.
+
             return AlertDialog(
               title: Text('Thành viên nhóm "${group.name}"'),
               content: SizedBox(
@@ -195,18 +248,11 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
                             )),
               ),
               actions: <Widget>[
-                if (!_isLoadingDialogMembers)
+                if (!_isLoadingDialogMembers) // Chỉ hiển thị nút đóng khi không loading
                   TextButton(
                     child: const Text('Đóng'),
                     onPressed: () {
                       Navigator.of(dialogContext).pop();
-                      // Reset state sau khi đóng dialog để lần sau mở lại không bị lỗi state cũ
-                      if (mounted) {
-                        setState(() {
-                          _isLoadingDialogMembers = false;
-                          _dialogMembersList = [];
-                        });
-                      }
                     },
                   ),
               ],
@@ -216,106 +262,109 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
       },
     );
 
-    // Bắt đầu tải dữ liệu
+    // Bắt đầu tải dữ liệu sau khi dialog đã hiển thị
     try {
       final memberIdsUrl = Uri.parse(
         '$_chatServiceBaseUrl/api/groups/${group.id}/members',
       );
       print("Fetching member IDs from: $memberIdsUrl");
-      final memberIdsResponse = await http.get(memberIdsUrl);
+      // <<< THÊM: Headers với Authorization token >>>
+      final memberIdsResponse = await http.get(
+        memberIdsUrl,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
       if (!mounted) return;
+
       if (memberIdsResponse.statusCode != 200) {
-        throw Exception(
-          'Lỗi tải ID thành viên: ${memberIdsResponse.statusCode} - ${memberIdsResponse.body}',
-        );
+        _handleApiError(memberIdsResponse.body, memberIdsResponse.statusCode);
+        // Đóng dialog nếu có lỗi
+        if (Navigator.canPop(context)) Navigator.pop(context);
+        setState(
+          () => _isLoadingDialogMembers = false,
+        ); // Cập nhật state loading
+        return;
       }
+
       final List<dynamic> idsJson = jsonDecode(memberIdsResponse.body);
       final List<String> memberIds =
           idsJson.map((id) => id.toString()).toList();
       print("Fetched member IDs: $memberIds");
 
       List<Map<String, String>> fetchedMembersTemp = [];
-      for (String userId in memberIds) {
-        // API của user-service để lấy thông tin user
-        final userUrl = Uri.parse('$_userServiceBaseUrl/api/user/$userId');
-        print("Fetching user details for $userId from $userUrl");
-        final userResponse = await http.get(userUrl);
+      for (String userIdInGroup in memberIds) {
+        final userUrl = Uri.parse(
+          '$_userServiceBaseUrl/api/user/$userIdInGroup',
+        );
+        print("Fetching user details for $userIdInGroup from $userUrl");
+
+        // Giả sử user-service không cần token, nếu cần thì thêm header tương tự
+        // final String? userServiceToken = await _authService.getToken(); // Nếu user-service cũng cần token
+        final userResponse = await http.get(
+          userUrl,
+          // headers: userServiceToken != null ? {'Authorization': 'Bearer $userServiceToken'} : {},
+        );
 
         if (!mounted) return;
         if (userResponse.statusCode == 200) {
           final userJson = jsonDecode(userResponse.body);
-          // Đảm bảo user-service trả về trường 'fullName' hoặc 'name'
-          // Và user_uid là docId của user document trong user_service
-          // Cấu trúc userJson có thể là { "user": { "fullName": "...", "user_id": "..." } }
-          // hoặc { "fullName": "...", "user_id": "..." }
-          // Điều chỉnh cho phù hợp với API user-service của bạn
           String name = 'Unknown User';
-          String id = userId; // Mặc định là userId truyền vào
+          String id = userIdInGroup;
 
           if (userJson['user'] != null) {
-            // Kiểm tra xem có object 'user' không
             final userData = userJson['user'];
-            if (userData['fullName'] != null) {
-              name = userData['fullName'];
-            } else if (userData['name'] != null) {
-              // Nếu không có fullName thì thử 'name'
-              name = userData['name'];
-            } else if (userData['displayName'] != null &&
-                (userData['firestoreDataMissing'] == true)) {
-              // Trường hợp chỉ có dữ liệu từ Auth
-              name = userData['displayName'];
-            }
-
-            // Lấy user_id từ response nếu có, ưu tiên hơn userId ban đầu
-            if (userData['user_id'] != null) {
-              id = userData['user_id'];
-            } else if (userData['uid'] != null) {
-              // Nếu là dữ liệu từ Auth thì có thể là 'uid'
-              id = userData['uid'];
-            }
+            name =
+                userData['fullName'] ??
+                userData['name'] ??
+                userData['displayName'] ??
+                'User';
+            id = userData['user_id'] ?? userData['uid'] ?? userIdInGroup;
+          } else {
+            // Trường hợp user-service trả về trực tiếp thông tin user
+            name =
+                userJson['fullName'] ??
+                userJson['name'] ??
+                userJson['displayName'] ??
+                'User';
+            id = userJson['user_id'] ?? userJson['uid'] ?? userIdInGroup;
           }
-
           fetchedMembersTemp.add({'id': id, 'name': name});
         } else {
           print(
-            'Lỗi tải thông tin user $userId: ${userResponse.statusCode} - ${userResponse.body}',
+            'Lỗi tải thông tin user $userIdInGroup: ${userResponse.statusCode} - ${userResponse.body}',
           );
-          fetchedMembersTemp.add({'id': userId, 'name': 'User $userId (Lỗi)'});
+          fetchedMembersTemp.add({
+            'id': userIdInGroup,
+            'name': 'User $userIdInGroup (Lỗi)',
+          });
         }
       }
 
       if (mounted) {
+        // Cập nhật state của _FriendsListScreenState để dialog rebuild
         setState(() {
-          // Gọi setState của _FriendsListScreenState
           _dialogMembersList = fetchedMembersTemp;
           _isLoadingDialogMembers = false;
         });
       }
     } catch (e) {
-      print('Lỗi khi tải thông tin thành viên: $e');
+      _handleApiError(e, null);
       if (mounted) {
+        // Đóng dialog nếu có lỗi
+        if (Navigator.canPop(context)) Navigator.pop(context);
         setState(() {
           _isLoadingDialogMembers = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi tải thành viên: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        // Tự động đóng dialog nếu có lỗi nghiêm trọng
-        // Navigator.of(this.context).pop();
       }
     }
   }
 
   void _onItemTapped(int index) {
-    if (_selectedIndex == index &&
-        index != 1 /* Allow re-tap for refresh on group list? */ )
-      return;
+    if (_selectedIndex == index && index != 1) return;
 
-    // Cập nhật _selectedIndex trước khi điều hướng để UI phản hồi ngay
     if (mounted) {
       setState(() {
         _selectedIndex = index;
@@ -332,8 +381,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
         );
         break;
       case 1:
-        // Đang ở đây, có thể thêm logic refresh nếu muốn
-        _loadGroupChats();
+        _loadGroupChats(); // Refresh list
         break;
       case 2:
         Navigator.pushReplacement(
@@ -343,7 +391,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
           ),
         );
         break;
-      // case 3:
+      // case 3: // ChatBotScreen
       //   Navigator.pushReplacement(
       //     context,
       //     MaterialPageRoute(
@@ -370,8 +418,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
       appBar: AppBar(
         title: const Text('Danh sách nhóm'),
         backgroundColor: Colors.blueAccent,
-        automaticallyImplyLeading:
-            false, // Không hiển thị nút back nếu đây là tab chính
+        automaticallyImplyLeading: false,
       ),
       body:
           _isLoadingGroups
@@ -447,7 +494,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
                               MaterialPageRoute(
                                 builder:
                                     (context) => ChatScreen(
-                                      chatTargetId: group.id,
+                                      chatTargetId: group.id, // Đây là group_id
                                       chatTargetName: group.name,
                                       currentUser: widget.currentUser,
                                     ),
@@ -476,6 +523,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
             label: 'Camera',
           ),
           BottomNavigationBarItem(
+            // ChatBot item
             icon: Icon(Icons.smart_toy_outlined),
             activeIcon: Icon(Icons.smart_toy),
             label: 'Chat Bot',

@@ -1,17 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-// import 'package:http/http.dart' as http; // <<< XÓA: Không cần gọi API backend để login nữa
-// import 'dart:convert'; // <<< XÓA: Không cần jsonEncode/Decode cho login nữa
-import 'package:firebase_auth/firebase_auth.dart'; // <<< THÊM: Import Firebase Auth
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/forgot_password_screen.dart';
 import 'package:app/services/user_service.dart';
 import 'package:app/models/user_model.dart';
-// TODO: Import gói lưu trữ an toàn nếu cần (ví dụ: flutter_secure_storage)
-
-// const String apiUrl = 'http://localhost:5000'; // <<< XÓA: Không cần thiết cho login nữa
-
-// TODO: Khởi tạo secure storage nếu cần
+import 'package:app/services/auth_service.dart'; // <<< THÊM: Import AuthService
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -27,8 +21,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
   bool _isLoading = false;
   final UserService _userService = UserService();
-  // <<< THÊM: Khởi tạo FirebaseAuth instance >>>
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final AuthService _authService =
+      AuthService(); // <<< THÊM: Khởi tạo AuthService
 
   @override
   void dispose() {
@@ -47,32 +42,50 @@ class _LoginScreenState extends State<LoginScreen> {
       final String password = _passwordController.text.trim();
 
       try {
-        // <<< SỬA: Đăng nhập trực tiếp bằng Firebase Auth >>>
         UserCredential userCredential = await _auth.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
 
-        if (!mounted) return; // Kiểm tra mounted sau await
+        if (!mounted) return;
 
-        // Đăng nhập Firebase Auth thành công
         if (userCredential.user != null) {
-          final String authUid = userCredential.user!.uid; // Lấy UID
-          print('Đăng nhập Firebase Auth thành công. UID: $authUid');
+          final String authUid = userCredential.user!.uid;
+          // <<< THÊM: Lấy idToken >>>
+          final String? idToken = await userCredential.user!.getIdToken();
 
-          // <<< GIỮ NGUYÊN: Lấy UserModel từ Firestore bằng Auth UID >>>
-          // Vì đã đăng nhập Firebase Auth, truy vấn này sẽ có quyền
+          print('Đăng nhập Firebase Auth thành công. UID: $authUid');
+          // print('Firebase ID Token: $idToken'); // Log token để kiểm tra (chỉ trong dev)
+
+          if (idToken == null) {
+            print('Lỗi: Không thể lấy được ID Token từ Firebase.');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Lỗi xác thực: Không thể lấy token. Vui lòng thử lại.',
+                  ),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+            await _auth.signOut();
+            return;
+          }
+
+          // <<< THÊM: Lưu token vào AuthService >>>
+          await _authService.saveToken(idToken);
+
           UserModel? loggedInUser = await _userService.getUserByAuthUid(
             authUid,
           );
 
-          if (!mounted) return; // Kiểm tra lại trước khi điều hướng
+          if (!mounted) return;
 
           if (loggedInUser != null) {
             print(
               'Lấy được thông tin user từ Firestore: ${loggedInUser.fullName}, docId: ${loggedInUser.docId}, userId: ${loggedInUser.userId}',
             );
-            // Điều hướng đến HomeScreen
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -80,8 +93,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             );
           } else {
-            // Lỗi này ít khả năng xảy ra hơn nếu đăng nhập Auth thành công
-            // nhưng có thể xảy ra nếu dữ liệu Firestore bị thiếu hoặc có vấn đề khác
             print(
               'Lỗi: Không tìm thấy dữ liệu Firestore cho Auth UID: [$authUid]',
             );
@@ -93,11 +104,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 backgroundColor: Colors.red,
               ),
             );
-            // Đăng xuất khỏi Firebase Auth nếu dữ liệu không nhất quán
             await _auth.signOut();
+            await _authService.deleteToken(); // Xóa token nếu có lỗi
           }
         } else {
-          // Trường hợp hiếm: userCredential không null nhưng user lại null
           print('Lỗi: UserCredential có user là null sau khi đăng nhập.');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -106,12 +116,9 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         }
-
-        // <<< SỬA: Catch lỗi từ Firebase Auth >>>
       } on FirebaseAuthException catch (e) {
         print('Lỗi đăng nhập Firebase Auth: ${e.code} - ${e.message}');
         String errorMessage = 'Đăng nhập thất bại. Vui lòng thử lại.';
-        // Cung cấp thông báo lỗi cụ thể hơn
         if (e.code == 'user-not-found' ||
             e.code == 'wrong-password' ||
             e.code == 'invalid-credential') {
@@ -123,7 +130,6 @@ class _LoginScreenState extends State<LoginScreen> {
         } else if (e.code == 'too-many-requests') {
           errorMessage = 'Quá nhiều yêu cầu đăng nhập. Vui lòng thử lại sau.';
         }
-        // Các mã lỗi khác có thể thêm tại đây...
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -134,7 +140,6 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } catch (e) {
-        // Catch các lỗi khác (ví dụ: lỗi mạng khi gọi Firestore, lỗi trong getUserByAuthUid)
         print('Lỗi khác trong quá trình đăng nhập: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -161,7 +166,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     // ... Phần UI (Scaffold, Container, Form, TextFields, Button, Text.rich) giữ nguyên như cũ ...
-    // Bạn không cần thay đổi phần giao diện người dùng.
     return Scaffold(
       body: Container(
         // Gradient background
@@ -201,7 +205,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 30),
                     _buildTextField(
-                      // Giữ nguyên hàm helper này
                       controller: _emailController,
                       labelText: 'Email',
                       keyboardType: TextInputType.emailAddress,
@@ -219,7 +222,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 20),
                     _buildTextField(
-                      // Giữ nguyên hàm helper này
                       controller: _passwordController,
                       labelText: 'Password',
                       obscureText: !_isPasswordVisible,
@@ -311,7 +313,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Helper widget _buildTextField giữ nguyên như cũ
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
@@ -335,17 +336,17 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
-          style: const TextStyle(color: Colors.white), // Màu chữ nhập
+          style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.black.withOpacity(0.6), // Nền ô nhập
+            fillColor: Colors.black.withOpacity(0.6),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 15,
               vertical: 15,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none, // Không viền khi bình thường
+              borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
@@ -353,29 +354,21 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(
-                color: Colors.blue[300]!,
-                width: 1.5,
-              ), // Viền khi focus
+              borderSide: BorderSide(color: Colors.blue[300]!, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(
-                color: Colors.redAccent,
-                width: 1.5,
-              ), // Viền khi lỗi
+              borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
             ),
             hintText: 'Enter $labelText',
-            hintStyle: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-            ), // Màu chữ gợi ý
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
             suffixIcon: suffixIcon,
             errorStyle: const TextStyle(
-              color: Colors.redAccent, // Màu chữ báo lỗi
+              color: Colors.redAccent,
               fontWeight: FontWeight.bold,
             ),
           ),

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
-import 'dart:async'; // Import để sử dụng Future.delayed
+import 'dart:async';
+import 'dart:convert'; // For jsonEncode/Decode
+import 'dart:io'; // For File
+import 'dart:typed_data'; // For Uint8List
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart'; // For MediaType
 
-// Màn hình để viết và gửi báo cáo
 class ReportScreen extends StatefulWidget {
-  final String imagePath; // Nhận đường dẫn ảnh từ màn hình trước
+  final String imagePath;
 
   const ReportScreen({Key? key, required this.imagePath}) : super(key: key);
 
@@ -14,8 +19,13 @@ class ReportScreen extends StatefulWidget {
 class _ReportScreenState extends State<ReportScreen> {
   final TextEditingController _reportContentController =
       TextEditingController();
-  bool _isLoading = false; // Trạng thái loading khi gửi
-  bool _isSuccess = false; // Trạng thái gửi thành công
+  bool _isLoading = false;
+  bool _isSuccess = false;
+
+  // ...existing code...
+  static final String _reportServiceBaseUrl =
+      kIsWeb ? 'http://localhost:3004' : 'http://10.0.2.2:3004';
+  // ...existing code...
 
   @override
   void dispose() {
@@ -23,82 +33,141 @@ class _ReportScreenState extends State<ReportScreen> {
     super.dispose();
   }
 
-  // Hàm xử lý gửi báo cáo (mô phỏng)
   Future<void> _sendReport() async {
-    if (_reportContentController.text.isEmpty) {
+    if (_reportContentController.text.trim().isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập nội dung báo cáo.')),
       );
       return;
     }
 
+    if (!mounted) return;
     setState(() {
-      _isLoading = true; // Bắt đầu loading
-      _isSuccess = false; // Reset trạng thái success nếu gửi lại
+      _isLoading = true;
+      _isSuccess = false;
     });
 
-    // Mô phỏng việc gửi dữ liệu lên server
     try {
-      // Lấy nội dung báo cáo và đường dẫn ảnh
       final reportContent = _reportContentController.text;
       final imagePath = widget.imagePath;
-      print('--- Gửi Báo Cáo ---');
-      print('Nội dung: $reportContent');
-      print('Ảnh: $imagePath');
-      print('--------------------');
 
-      // Giả lập độ trễ mạng
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Giả lập thành công
-      setState(() {
-        _isLoading = false; // Kết thúc loading
-        _isSuccess = true; // Đánh dấu thành công
-      });
-
-      // Hiển thị thông báo thành công và có thể tự động quay lại sau vài giây
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Gửi báo cáo thành công!'),
-          backgroundColor: Colors.green,
-        ),
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$_reportServiceBaseUrl/api/scan-and-report'),
       );
-      // Tùy chọn: Tự động quay lại màn hình trước sau khi thành công
-      // Timer(const Duration(seconds: 2), () {
-      //   if (mounted) {
-      //     Navigator.pop(context); // Quay lại ImageSearchResultScreen
-      //   }
-      // });
+
+      request.fields['reportText'] = reportContent;
+
+      if (kIsWeb) {
+        var imageDataResponse = await http.get(Uri.parse(imagePath));
+        if (imageDataResponse.statusCode == 200) {
+          Uint8List imageData = imageDataResponse.bodyBytes;
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'image',
+              imageData,
+              filename: 'upload.jpg',
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+        } else {
+          throw Exception(
+            'Lỗi tải ảnh từ blob URL (web): ${imageDataResponse.statusCode}',
+          );
+        }
+      } else {
+        File imageFile = File(imagePath);
+        if (!await imageFile.exists()) {
+          throw Exception(
+            'File ảnh không tồn tại tại đường dẫn (mobile): $imagePath',
+          );
+        }
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'image',
+            imagePath,
+            contentType: MediaType('image', 'jpeg'),
+          ),
+        );
+      }
+
+      print('--- Gửi Báo Cáo Lên Backend ---');
+      print('URL: ${request.url}');
+      print('Nội dung (reportText): $reportContent');
+      print('Trường file: image, path/url: $imagePath');
+      print('-----------------------------');
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('Mã trạng thái phản hồi từ Backend: ${response.statusCode}');
+      print('Nội dung phản hồi từ Backend: ${response.body}');
+
+      if (!mounted) return;
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (responseData['success'] == true) {
+          setState(() {
+            _isLoading = false;
+            _isSuccess = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                responseData['message'] ?? 'Gửi báo cáo thành công!',
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Timer(const Duration(seconds: 2), () {
+            if (mounted && Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          });
+        } else {
+          throw Exception(
+            responseData['message'] ??
+                'Gửi báo cáo thất bại từ server (success:false).',
+          );
+        }
+      } else {
+        throw Exception(
+          responseData['message'] ?? 'Lỗi server: ${response.statusCode}.',
+        );
+      }
     } catch (error) {
-      // Xử lý lỗi nếu có
-      print("Lỗi khi gửi báo cáo: $error");
-      setState(() {
-        _isLoading = false; // Kết thúc loading khi có lỗi
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gửi báo cáo thất bại: $error'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print("Lỗi khi gửi báo cáo lên backend: $error");
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gửi báo cáo thất bại: ${error.toString().substring(0, (error.toString().length > 100) ? 100 : error.toString().length)}...',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Placeholder tên quản lý
     const String managerName = "Nguyễn Văn A";
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Viết Báo Cáo'),
-        backgroundColor: Colors.blueAccent, // Hoặc màu gradient
+        backgroundColor: Colors.blueAccent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            // Chỉ cho phép quay lại nếu không đang loading
             if (!_isLoading) {
-              Navigator.pop(context); // Quay lại ImageSearchResultScreen
+              Navigator.pop(context);
             }
           },
         ),
@@ -108,7 +177,6 @@ class _ReportScreenState extends State<ReportScreen> {
         height: double.infinity,
         padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
-          // Thêm gradient nếu muốn
           gradient: LinearGradient(
             colors: [
               Colors.lightBlue[50] ?? Colors.white,
@@ -119,11 +187,9 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
         ),
         child: SingleChildScrollView(
-          // Cho phép cuộn nếu nội dung dài
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Thông tin người quản lý và chỉ báo trạng thái
               const Text(
                 'Người quản lý:',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
@@ -147,18 +213,16 @@ class _ReportScreenState extends State<ReportScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Tên quản lý
-                    const Text(
+                    Text(
                       managerName,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    // Chỉ báo Loading hoặc Success
                     if (_isLoading)
                       const SizedBox(
-                        width: 24, // Kích thước cố định cho indicator
+                        width: 24,
                         height: 24,
                         child: CircularProgressIndicator(strokeWidth: 3),
                       )
@@ -169,16 +233,11 @@ class _ReportScreenState extends State<ReportScreen> {
                         size: 28,
                       )
                     else
-                      const SizedBox(
-                        width: 24,
-                        height: 24,
-                      ), // Placeholder giữ chỗ
+                      const SizedBox(width: 24, height: 24),
                   ],
                 ),
               ),
               const SizedBox(height: 25),
-
-              // 2. Khung nhập nội dung báo cáo
               const Text(
                 'Nội dung báo cáo:',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
@@ -186,11 +245,9 @@ class _ReportScreenState extends State<ReportScreen> {
               const SizedBox(height: 8),
               TextField(
                 controller: _reportContentController,
-                maxLines: 8, // Cho phép nhập nhiều dòng
+                maxLines: 8,
                 minLines: 5,
-                enabled:
-                    !_isLoading &&
-                    !_isSuccess, // Vô hiệu hóa khi đang gửi hoặc đã thành công
+                enabled: !_isLoading && !_isSuccess,
                 decoration: InputDecoration(
                   hintText: 'Nhập chi tiết báo cáo của bạn...',
                   filled: true,
@@ -213,8 +270,6 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-
-              // 3. Nút Gửi báo cáo
               Center(
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.send, color: Colors.white),
@@ -228,7 +283,6 @@ class _ReportScreenState extends State<ReportScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  // Vô hiệu hóa nút khi đang loading hoặc đã gửi thành công
                   onPressed: (_isLoading || _isSuccess) ? null : _sendReport,
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
@@ -241,7 +295,6 @@ class _ReportScreenState extends State<ReportScreen> {
                       borderRadius: BorderRadius.circular(25),
                     ),
                     elevation: 5,
-                    // Kiểu dáng khi nút bị vô hiệu hóa
                     disabledBackgroundColor: Colors.grey[400],
                   ),
                 ),
@@ -250,7 +303,6 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
         ),
       ),
-      // Không cần BottomNavigationBar ở màn hình này nếu chỉ để báo cáo
     );
   }
 }

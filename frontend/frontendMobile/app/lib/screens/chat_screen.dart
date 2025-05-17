@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:app/models/user_model.dart'; // Đảm bảo bạn đã import UserModel
 import 'package:intl/intl.dart'; // For date formatting
+import 'package:app/services/auth_service.dart'; // <<< THÊM: Import AuthService
+import 'package:app/screens/login_screen.dart'; // <<< THÊM: Import LoginScreen để điều hướng
 
 class ChatMessage {
   final String id;
@@ -86,9 +88,11 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
-  late IO.Socket socket; // Sẽ được khởi tạo trong initState
+  late IO.Socket socket;
   bool _isLoadingMessages = true;
   bool _isConnected = false;
+  final AuthService _authService =
+      AuthService(); // <<< THÊM: Khởi tạo AuthService
 
   // --- Configuration ---
   static const String _chatServiceBaseUrl =
@@ -108,9 +112,8 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       if (mounted) {
         setState(() {
-          _isLoadingMessages = false; // Dừng loading
+          _isLoadingMessages = false;
         });
-        // Hiển thị thông báo lỗi và có thể tự động đóng màn hình
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -119,11 +122,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 backgroundColor: Colors.red,
               ),
             );
-            Navigator.of(context).pop(); // Quay lại màn hình trước
+            Navigator.of(context).pop();
           }
         });
       }
-      return; // Không thực hiện kết nối nếu ID nhóm rỗng
+      return;
     }
 
     _connectSocket();
@@ -135,21 +138,15 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     print("Disposing socket for group ${widget.chatTargetId}");
-
-    // Kiểm tra xem socket đã được khởi tạo chưa (quan trọng nếu initState return sớm)
-    // Sử dụng 'this::socket.isInitialized' để kiểm tra biến 'late' đã được gán chưa.
-    // Tuy nhiên, cách tiếp cận an toàn hơn là dùng một cờ boolean hoặc kiểm tra null nếu không dùng 'late'.
-    // Vì 'socket' là 'late', nếu initState return sớm, nó sẽ không được gán.
-    // Một cách đơn giản là kiểm tra xem _connectSocket đã được gọi chưa, hoặc dùng try-catch.
-    // Hoặc, nếu bạn chắc chắn _connectSocket luôn được gọi nếu chatTargetId không rỗng:
     try {
-      // Gỡ bỏ tất cả các listeners đã đăng ký
       socket.off('connect');
       socket.off('new-message');
       socket.off('disconnect');
       socket.off('connect_error');
       socket.off('error');
-      // Thêm bất kỳ listeners nào khác bạn đã đăng ký ở đây
+      socket.off(
+        'send-message-error',
+      ); // <<< THÊM: Gỡ listener lỗi gửi tin nhắn
 
       if (socket.connected) {
         socket.emit('leave-group', widget.chatTargetId);
@@ -161,18 +158,44 @@ class _ChatScreenState extends State<ChatScreen> {
         "Error during socket disposal (socket might not have been initialized): $e",
       );
     }
-
     super.dispose();
   }
 
-  void _connectSocket() {
-    // Khởi tạo socket ở đây
-    socket = IO.io(_chatServiceBaseUrl, <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false, // Kết nối thủ công
-    });
+  Future<void> _handleApiError(dynamic e, int? statusCode) async {
+    print('API Error in ChatScreen: $e, Status Code: $statusCode');
+    if (mounted) {
+      String message = 'Đã xảy ra lỗi khi tải tin nhắn. Vui lòng thử lại.';
+      if (statusCode == 401 || statusCode == 403) {
+        message =
+            'Phiên đăng nhập hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.';
+        await _authService.deleteToken();
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (Route<dynamic> route) => false,
+        );
+      } else if (e is http.ClientException) {
+        message = 'Lỗi kết nối máy chủ. Vui lòng kiểm tra lại.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  }
 
-    socket.connect(); // Thực hiện kết nối
+  void _connectSocket() {
+    socket = IO.io(
+      _chatServiceBaseUrl,
+      IO.OptionBuilder()
+          .setTransports(['websocket'])
+          .disableAutoConnect() // Kết nối thủ công
+          .setQuery({
+            'userId': widget.currentUser.docId,
+          }) // <<< THÊM: Gửi userId qua query
+          // .setAuth({'token': 'YOUR_SOCKET_AUTH_TOKEN_IF_ANY'}) // Nếu socket có auth riêng
+          .build(),
+    );
+
+    socket.connect();
 
     socket.onConnect((_) {
       if (!mounted) return;
@@ -188,13 +211,10 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted && data is Map<String, dynamic>) {
         try {
           final newMessage = ChatMessage.fromJson(data);
-          // Kiểm tra trùng lặp tin nhắn dựa trên ID
           if (!_messages.any((msg) => msg.id == newMessage.id)) {
             setState(() {
               _messages.add(newMessage);
-              _messages.sort(
-                (a, b) => a.timestamp.compareTo(b.timestamp),
-              ); // Sắp xếp lại
+              _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
             });
             _scrollToBottom();
           } else {
@@ -210,15 +230,31 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
 
+    // <<< THÊM: Lắng nghe lỗi gửi tin nhắn từ server >>>
+    socket.on('send-message-error', (errorData) {
+      print('Socket received send-message-error: $errorData');
+      if (mounted && errorData is Map<String, dynamic>) {
+        final String errorMessage =
+            errorData['details'] ??
+            errorData['message'] ??
+            'Lỗi không xác định từ server.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi gửi tin nhắn: $errorMessage'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    });
+
     socket.onDisconnect((reason) {
       if (!mounted) return;
       setState(() {
         _isConnected = false;
       });
       print('Socket disconnected for group ${widget.chatTargetId}: $reason');
-      // Tự động kết nối lại nếu server chủ động ngắt
       if (reason == 'io server disconnect') {
-        socket.connect();
+        // socket.connect(); // Cân nhắc việc tự động kết nối lại
       }
     });
 
@@ -252,13 +288,31 @@ class _ChatScreenState extends State<ChatScreen> {
       _isLoadingMessages = true;
     });
 
+    // <<< THÊM: Lấy token >>>
+    final String? token = await _authService.getToken();
+    if (token == null) {
+      print("Error loading messages: No auth token found.");
+      if (mounted) {
+        _handleApiError("Token not found for loading messages", 401);
+      }
+      setState(() => _isLoadingMessages = false);
+      return;
+    }
+
     final url = Uri.parse(
       '$_chatServiceBaseUrl/api/groups/${widget.chatTargetId}/messages',
     );
     print("Loading initial messages from: $url");
 
     try {
-      final response = await http.get(url);
+      // <<< THÊM: Headers với Authorization token >>>
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
       if (!mounted) return;
 
       if (response.statusCode == 200) {
@@ -273,32 +327,19 @@ class _ChatScreenState extends State<ChatScreen> {
                 .toList(),
           );
           _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-          _isLoadingMessages = false;
         });
         print("Loaded ${_messages.length} initial messages.");
         _scrollToBottom(instant: true);
       } else {
-        print(
-          'Failed to load messages: ${response.statusCode} ${response.body}',
-        );
-        if (mounted) {
-          setState(() {
-            _isLoadingMessages = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi tải tin nhắn: ${response.statusCode}')),
-          );
-        }
+        _handleApiError(response.body, response.statusCode);
       }
     } catch (e) {
-      print('Error loading messages: $e');
+      _handleApiError(e, null);
+    } finally {
       if (mounted) {
         setState(() {
           _isLoadingMessages = false;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi kết nối tải tin nhắn: $e')));
       }
     }
   }
@@ -328,7 +369,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       if (!socket.connected) {
         print("Attempting to reconnect socket before sending message...");
-        socket.connect(); // Thử kết nối lại
+        socket.connect();
       }
       return;
     }
@@ -341,13 +382,11 @@ class _ChatScreenState extends State<ChatScreen> {
       'sender_id': widget.currentUser.docId,
       'sender_name': widget.currentUser.fullName,
       'text': text,
-      // Server sẽ tự tạo timestamp
     };
 
     print("Emitting send-message via socket: $messageData");
     socket.emit('send-message', messageData);
     _messageController.clear();
-    // Tin nhắn sẽ được thêm vào danh sách khi nhận 'new-message' từ server
   }
 
   void _scrollToBottom({bool instant = false}) {
@@ -466,7 +505,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   minLines: 1,
                   maxLines: 5,
-                  enabled: _isConnected, // Chỉ cho phép nhập khi đã kết nối
+                  enabled: _isConnected,
                   textInputAction: TextInputAction.send,
                   onSubmitted: _isConnected ? (_) => _sendMessage() : null,
                 ),
@@ -507,7 +546,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             padding: const EdgeInsets.all(20.0),
                             child: Text(
                               widget.chatTargetId.isEmpty
-                                  ? 'Lỗi: Không thể tải tin nhắn do thiếu ID nhóm.' // Thông báo nếu ID nhóm rỗng từ đầu
+                                  ? 'Lỗi: Không thể tải tin nhắn do thiếu ID nhóm.'
                                   : 'Chưa có tin nhắn nào trong nhóm "${widget.chatTargetName}".\nHãy là người đầu tiên gửi tin nhắn!',
                               textAlign: TextAlign.center,
                               style: TextStyle(
@@ -532,7 +571,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           if (!_isConnected &&
               !_isLoadingMessages &&
-              widget.chatTargetId.isNotEmpty) // Chỉ hiển thị nếu ID nhóm hợp lệ
+              widget.chatTargetId.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               color: Colors.orange[100],
