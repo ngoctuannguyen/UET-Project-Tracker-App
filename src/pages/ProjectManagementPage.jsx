@@ -22,7 +22,7 @@ const ProjectManagementPage = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await axios.get("/api/projects");
+        const response = await axios.get("/api/projects", { withCredentials: true });
         
         // Transform dữ liệu từ API
         const transformedData = response.data.map(project => ({

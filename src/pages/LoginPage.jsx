@@ -23,11 +23,11 @@ const LoginPage = () => {
       const role = email.includes("admin") ? "admin" : "user";
 
       // Gửi yêu cầu đăng nhập
-      const response = await axios.post("/auth/login", { email, password });
+      const response = await axios.post("/auth/login", { email, password }, { withCredentials: true });
 
       const { idToken, refreshToken, userData } = response.data;
 
-      console.log(idToken, " ", refreshToken, " ", userData);
+      console.log(idToken, "****", refreshToken, " ", userData);
   
       // Lưu trạng thái người dùng vào Context
       login(idToken, refreshToken, userData);
