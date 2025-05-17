@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
+import GroupChatInfo from "../components/GroupChatInfo";
 
 // 👥 Danh sách group chat mẫu
 const sampleGroups = [
-  { id: 1, name: "Frontend Team" },
-  { id: 2, name: "Backend Team" },
-  { id: 3, name: "UI/UX Design" },
+  { id: 1, name: "Frontend Team", members: ["Alice", "NTN", "VCL"] },
+  { id: 2, name: "Backend Team", members: ["Bob", "You"] },
+  { id: 3, name: "UI/UX Design", members: ["Charlie", "You"] },
 ];
 
 // 💬 Tin nhắn mẫu
@@ -24,10 +25,14 @@ const sampleMessages = {
 };
 
 const ChatGroupPage = () => {
+  const [groups, setGroups] = useState(sampleGroups);
   const [selectedGroupId, setSelectedGroupId] = useState(1);
   const [search, setSearch] = useState("");
   const [messages, setMessages] = useState(sampleMessages[selectedGroupId] || []);
   const [input, setInput] = useState("");
+  const [showMembers, setShowMembers] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [newMember, setNewMember] = useState("");
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -49,9 +54,27 @@ const ChatGroupPage = () => {
     setInput("");
   };
 
-  const filteredGroups = sampleGroups.filter((group) =>
+  const filteredGroups = groups.filter((group) =>
     group.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const currentGroup = groups.find((g) => g.id === selectedGroupId);
+
+  const handleAddMember = () => {
+    if (!newMember.trim()) return;
+    if (currentGroup.members.includes(newMember.trim())) {
+      alert("Thành viên đã tồn tại trong nhóm!");
+      return;
+    }
+    const updatedGroups = groups.map((g) =>
+      g.id === selectedGroupId
+        ? { ...g, members: [...g.members, newMember.trim()] }
+        : g
+    );
+    setGroups(updatedGroups);
+    setNewMember("");
+    setShowAddMember(false);
+  };
 
   return (
     <div className="h-screen flex">
@@ -84,9 +107,22 @@ const ChatGroupPage = () => {
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col bg-gray-100 p-6">
-        <h1 className="text-2xl font-bold mb-4">
-          {sampleGroups.find((g) => g.id === selectedGroupId)?.name}
-        </h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold">
+            {currentGroup?.name}
+          </h1>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowMembers(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg shadow hover:from-blue-600 hover:to-blue-800 transition font-semibold"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m9-4a4 4 0 10-8 0 4 4 0 008 0zm6 4v2a4 4 0 01-3 3.87M6 8a4 4 0 118 0 4 4 0 01-8 0z" />
+              </svg>
+              Xem thành viên
+            </button>
+          </div>
+        </div>
 
         <div className="flex-1 bg-white p-4 rounded-lg shadow overflow-y-auto">
           {messages.map((msg, idx) => (
@@ -129,6 +165,16 @@ const ChatGroupPage = () => {
             Send
           </button>
         </form>
+
+        {/* Modal xem thành viên */}
+        {showMembers && (
+        <div className="absolute inset-0 flex items-center justify-end pr-12 z-20">
+          <GroupChatInfo
+            members={currentGroup.members}
+            onClose={() => setShowMembers(false)}
+          />
+        </div>
+        )}
       </div>
     </div>
   );
