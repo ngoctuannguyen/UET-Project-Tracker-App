@@ -11,6 +11,7 @@ import PeopleOnThisProject from '@/pages/PeopleOnThisProject';
 import ProjectDescription from '@/pages/ProjectDescription';
 import LoginPage from "@/pages/LoginPage";
 import AdminPage from "@/pages/AdminPage";
+import NotificationPage from "@/pages/NotificationPage";
 import { Toaster } from "sonner";
 import ChatGroupPage from "@/pages/ChatGroupPage";
 import ChatAIPage from "@/pages/ChatAIPage";
@@ -53,6 +54,7 @@ const App = () => {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/chat-group" element={<ChatGroupPage />} />
                 <Route path="/chat-ai" element={<ChatAIPage />} />
+                <Route path="/notification" element={<NotificationPage />} />
 
                 <Route path="/project/:id" element={<ProjectDetailPage />}>
                   <Route index element={<ProjectProgress />} />

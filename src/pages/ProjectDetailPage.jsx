@@ -40,7 +40,7 @@ const ProjectDetailPage = () => {
   // List sidebar menu
   const menuItems = [
     { path: `/project/${id}`, label: "Project Progress" },
-    { path: `/project/${id}/project-analysis`, label: "Project Analysis" },
+    // { path: `/project/${id}/project-analysis`, label: "Project Analysis" },
     { path: `/project/${id}/people-on-this-project`, label: "People on this project" },
     { path: `/project/${id}/project-description`, label: "Project Description" },
   ];

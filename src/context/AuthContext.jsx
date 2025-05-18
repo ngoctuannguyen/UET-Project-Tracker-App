@@ -1,4 +1,6 @@
 import React, { createContext, useState, useContext } from "react";
+import axios from "axios";
+import { toast } from "sonner";
 
 const AuthContext = createContext();
 
@@ -13,6 +15,20 @@ export const AuthProvider = ({ children }) => {
       userData: userData ? JSON.parse(userData) : null,
     };
   });
+
+  function isTokenExpired(token) {
+    if (!token) return true;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  }
+
+  // useEffect(() => {
+  //   if (idToken && isTokenExpired(idToken)) {
+  //     logout();
+  //     toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+  //     navigate("/login");
+  //   }
+  // }, [idToken]);
 
   const refreshIdToken = async () => {
     try {
