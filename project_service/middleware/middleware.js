@@ -1,5 +1,6 @@
 const { db, project_service } = require('../services/service');
 const admin = require('firebase-admin');
+const axios = require('axios');
 
 const ProjectMiddleware = {
     validateProjectData: async (req, res, next) => {
@@ -156,18 +157,25 @@ const ProjectMiddleware = {
     // Validate Employee Existence (assuming you have a users collection)
     validateEmployee: async (req, res, next) => {
         try {
-            const employeeId = req.params.employee_id;
-            // const userRef = admin.firestore().collection('users_service').doc(employeeId);
-            // const userDoc = await userRef.get();
+            const employeeId = req.params.employeeId;
+            
+            const response = await axios.get(`http://localhost:3000/api/auth/user/${employeeId}`, {
+                headers: {
+                    Authorization: req.headers.authorization || "" 
+                }
+            });
 
-            // if (!userDoc.exists) {
-            //     return res.status(404).json({ error: 'Employee not found' });
-            // }
+            if (response.status !== 200 || response.data.data.role !== "1") {
+                return res.status(404).json({ error: 'Không tồn tại mã nhân viên này' });
+            }
 
-            // req.employee = userDoc.data();
             next();
         } catch (error) {
-            console.error('Employee validation error:', error);
+            if (error.response) {
+                console.error('API error:', error.response.status, error.response.data);
+            } else {
+                console.error('Axios error:', error.message);
+            }
             res.status(500).json({ error: 'Internal server error' });
         }
     },

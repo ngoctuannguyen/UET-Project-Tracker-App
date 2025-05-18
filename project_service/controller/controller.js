@@ -131,6 +131,7 @@ const projectController = {
     // Remove employee from project
     removeEmployee: async (req, res) => {
         try {
+
             const updatedProject = await Project.remove_employee(
                 req.params.projectId,
                 req.params.employeeId

@@ -34,19 +34,18 @@ const authMiddleware = async (req, res, next) => {
   try {
     // console.log("AuthMiddleware: Attempting to verify token with Firebase Admin SDK..."); // Bỏ comment nếu cần
     const decodedToken = await admin.auth().verifyIdToken(idToken);
-    // console.log("AuthMiddleware: Token verified successfully. UID:", decodedToken.uid); // Bỏ comment nếu cần
-    req.user = decodedToken; // Gán thông tin người dùng đã giải mã vào request
-    next(); // Chuyển sang controller tiếp theo
+    
+    req.user = decodedToken; 
+    next(); 
   } catch (error) {
     console.error(
       "AuthMiddleware: Error verifying Firebase ID token:",
       error.message
     );
-    console.error("AuthMiddleware: Firebase Error Code:", error.code); // Mã lỗi cụ thể từ Firebase
+    console.error("AuthMiddleware: Firebase Error Code:", error.code); 
 
     let clientMessage = "Invalid token";
-    let statusCode = 401; // Mặc định là Unauthorized
-
+    let statusCode = 401; 
     if (error.code === "auth/id-token-expired") {
       clientMessage = "Unauthorized: Token has expired.";
     } else if (error.code === "auth/argument-error") {
@@ -54,7 +53,6 @@ const authMiddleware = async (req, res, next) => {
     } else if (error.code === "auth/id-token-revoked") {
       clientMessage = "Unauthorized: Token has been revoked.";
     }
-    // Bạn có thể thêm các case lỗi cụ thể khác từ Firebase nếu cần
 
     return res
       .status(statusCode)
@@ -62,4 +60,35 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-module.exports = authMiddleware;
+const userMiddleware = async (req, res, next) => {
+
+  const { birthday, email, full_name, gender, role, user_id } = req.body;
+
+  if (!birthday && (!full_name || full_name.trim() === "")) {
+    return res.status(400).json({ message: "Không để trống ngày sinh và tên" });
+  }
+
+  let birthdayDate = birthday;
+  if (typeof birthday === "string" || typeof birthday === "number") {
+    birthdayDate = new Date(birthday);
+    req.body.birthday = birthdayDate;
+  }
+  if (!(birthdayDate instanceof Date) || isNaN(birthdayDate.getTime())) {
+    return res.status(400).json({ message: "Ngày sinh không hợp lệ." });
+  }
+
+  if (!full_name || full_name.trim() === "") {
+    return res.status(400).json({ message: "Không để trống tên" });
+  }
+
+    // Kiểm tra tên không chứa ký tự đặc biệt
+  const nameRegex = /^[a-zA-ZÀ-ỹ0-9 ]+$/u;
+  if (!nameRegex.test(full_name)) {
+    return res.status(400).json({ message: "Tên không được chứa ký tự đặc biệt." });
+  }
+
+  next();
+
+};
+
+module.exports = { authMiddleware, userMiddleware };
