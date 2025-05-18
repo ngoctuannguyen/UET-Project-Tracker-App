@@ -3,6 +3,7 @@ import { useParams, useOutletContext } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
 import { Trash, Plus, User, Crown, Briefcase } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const PeopleOnThisProject = () => {
   const { id } = useParams();
@@ -15,19 +16,27 @@ const PeopleOnThisProject = () => {
   const owner = project?.project_leader || "";
   const employees = project?.employee_list?.filter(e => e !== owner) || [];
 
+  const { auth, login } = useAuth();
+
   const handleAdd = async () => {
     const trimmedName = newEmployee.trim();
     if (!trimmedName) return;
 
+    const employee_id = trimmedName;
+
     try {
       setLoading(true);
       setError(null);
-      
-      await axios.post(`/api/projects/${id}/employees/${trimmedName}`);
+
+      const response = await axios.post(`/api/projects/${id}/employees/${employee_id}`, {}, {
+        headers: {
+          Authorization: `Bearer ${auth.idToken}`,
+        }
+      });
 
       toast.success("Employee added successfully!");
 
-      fetchProject();
+      await fetchProject();
       setNewEmployee("");
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to add employee");
@@ -43,11 +52,15 @@ const PeopleOnThisProject = () => {
       setLoading(true);
       setError(null);
 
-      await axios.delete(`/api/projects/${id}/employees/${employeeId}`);
+      const response = await axios.delete(`/api/projects/${id}/employees/${employeeId}`,{
+        headers: {
+          Authorization: `Bearer ${auth.idToken}`,
+        }
+      });
 
       toast.success("Employee removed successfully!");
 
-      fetchProject(); // Refetch data từ server
+      await fetchProject(); // Refetch data từ server
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to remove employee");
     } finally {

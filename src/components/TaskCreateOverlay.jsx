@@ -31,7 +31,7 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
     } catch (error) {
       console.error("Error creating task:", error);
       const errorMessage =
-        error.response?.data?.message || "An error occurred while creating the task.";
+        "An error occurred while creating the task.";
       toast.error(errorMessage);
     }
   };
