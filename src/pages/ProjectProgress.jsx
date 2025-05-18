@@ -104,9 +104,15 @@ const ProjectProgress = () => {
             className="bg-white p-4 rounded-lg shadow flex justify-between items-center group hover:shadow-md transition-shadow"
           >
             <div className="flex-1">
-              <h3 className="font-semibold mb-1">{task.work_description}</h3>
-              <p className="text-gray-500 text-sm">Assign to: {task.employee_id}</p>
-            </div>
+            <h3 className="font-semibold mb-1">{task.work_description}</h3>
+            <p
+              className={`text-sm ${
+                task.employee_id ? "text-gray-500" : "text-red-500"
+              }`}
+            >
+              Assign to: {task.employee_id || "No employee assigned"}
+            </p>
+          </div>
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end">
                 <p className="text-gray-400 text-sm">

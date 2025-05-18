@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import io from "socket.io-client";
+import GroupChatInfo from "../components/GroupChatInfo";
+
 // import { useNavigate } from "react-router-dom"; // Bỏ comment nếu bạn cần điều hướng
 
 // --- URL Configuration ---
@@ -16,6 +18,9 @@ const ChatGroupPage = () => {
   const [search, setSearch] = useState("");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [showMembers, setShowMembers] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [newMember, setNewMember] = useState("");
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
   const [loadingGroups, setLoadingGroups] = useState(true);
@@ -310,8 +315,29 @@ const ChatGroupPage = () => {
         )}
       </div>
 
+       {showMembers && (
+            <div className="absolute inset-0 flex items-center justify-end pr-12 z-20">
+              <GroupChatInfo
+                members={currentGroup.members}
+                onClose={() => setShowMembers(false)}
+              />
+            </div>
+        )}
+
+
       {/* Main chat area */}
       <div className="flex-1 flex flex-col bg-gray-100 p-6">
+        <div className="flex gap-2">
+            <button
+              onClick={() => setShowMembers(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg shadow hover:from-blue-600 hover:to-blue-800 transition font-semibold"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m9-4a4 4 0 10-8 0 4 4 0 008 0zm6 4v2a4 4 0 01-3 3.87M6 8a4 4 0 118 0 4 4 0 01-8 0z" />
+              </svg>
+              Xem thành viên
+            </button>
+          </div>
         {selectedGroupId && currentGroup ? (
           <>
             <div className="bg-white shadow rounded-t-lg p-4 mb-0.5">
@@ -358,6 +384,7 @@ const ChatGroupPage = () => {
                 </div>
               )}
               <div ref={messagesEndRef} />
+
             </div>
 
             <form

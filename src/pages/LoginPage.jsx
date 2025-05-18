@@ -2,11 +2,11 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import axios from "axios";
-
-const USER_SERVICE_API_URL = "http://localhost:3000/api/auth"; // PORT 3000 cho user-service
+import { useAuth } from "@/context/AuthContext"; // Đảm bảo đường dẫn chính xác
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { login } = useAuth(); // Lấy hàm login từ AuthContext
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -15,64 +15,36 @@ const LoginPage = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    if (!email.includes("@") || password.length < 6) {
-      toast.error("Email không hợp lệ hoặc mật khẩu phải có ít nhất 6 ký tự.");
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      const response = await axios.post(`${USER_SERVICE_API_URL}/login`, {
-        email,
-        password,
-      });
+      if (!email.includes("@") || password.length < 4) {
+        toast.error("Invalid email or password");
+        return;
+      }
 
-      if (response.data && response.data.idToken && response.data.uid && response.data.userData) {
-        const { idToken, uid, userData } = response.data;
+      // 🧪 Tạm thời: nếu email chứa "admin", gán role là admin
+      const role = email.includes("admin") ? "admin" : "user";
 
-        let userRole = "user";
-        if (userData.role) {
-          if (String(userData.role) === "1" || String(userData.role).toLowerCase() === "admin" || String(userData.role).toLowerCase() === "management") {
-            userRole = "admin";
-          } else if (String(userData.role) === "2" || String(userData.role).toLowerCase() === "user") {
-            userRole = "user";
-          }
-        }
+      // Gửi yêu cầu đăng nhập
+      const response = await axios.post("/auth/login", { email, password }, { withCredentials: true });
 
-        const authData = {
-          token: idToken,
-          user: {
-            uid: uid,
-            displayName: userData.full_name || userData.name || "User",
-            email: userData.email,
-            role: userRole,
-          },
-        };
-        localStorage.setItem('authData', JSON.stringify(authData));
+      const { idToken, refreshToken, userData } = response.data;
 
-        localStorage.removeItem("token");
-        localStorage.removeItem("role");
+      console.log(idToken, "****", refreshToken, " ", userData);
+  
+      // Lưu trạng thái người dùng vào Context
+      login(idToken, refreshToken, userData);
+  
+      toast.success("Login successful!")  
 
-        toast.success("Đăng nhập thành công!");
-
-        // ĐIỀU HƯỚNG ĐẾN TRANG CHỦ (/) SAU KHI ĐĂNG NHẬP THÀNH CÔNG
-        navigate("/"); // <<<< THAY ĐỔI ĐÍCH ĐIỀU HƯỚNG
-
+      // Điều hướng theo role
+      if (role === "admin") {
+        navigate("/admin");
       } else {
-        toast.error("Đăng nhập thất bại: Dữ liệu trả về không hợp lệ từ server.");
-        console.error("Invalid response data from login API:", response.data);
+        navigate("/");
       }
     } catch (error) {
-      console.error("Login error details:", error);
-      if (error.response && error.response.data && error.response.data.message) {
-        toast.error(`Đăng nhập thất bại: ${error.response.data.message}`);
-      } else if (error.request || error.code === "ERR_NETWORK") {
-        toast.error("Đăng nhập thất bại: Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và địa chỉ API.");
-      } else {
-        toast.error("Đăng nhập thất bại: Đã có lỗi xảy ra.");
-      }
-    } finally {
-      setIsLoading(false);
+      console.log(error);
+      toast.error(error.response?.data?.error || "Login failed");
     }
   };
 
@@ -112,10 +84,9 @@ const LoginPage = () => {
 
         <button
           type="submit"
-          className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-          disabled={isLoading}
+          className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
-          {isLoading ? "Đang xử lý..." : "Đăng nhập"}
+          Login
         </button>
       </form>
     </div>

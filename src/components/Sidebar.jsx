@@ -2,12 +2,15 @@ import React from "react";
 import { User, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { upperCase } from "lodash";
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const { auth, logout } = useAuth();
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    logout();
     toast.success("Logged out");
     navigate("/login");
   };
@@ -21,7 +24,7 @@ const Sidebar = () => {
           </div>
         </div>
         <div className="space-y-6 text-lg">
-          <p className="font-semibold text-center">HI, ADMIN</p>
+          <p className="font-semibold text-center">HI, {upperCase(auth.userData.full_name)}</p>
           <nav className="space-y-4">
             <p onClick={() => navigate("/")} className="cursor-pointer hover:underline">Home</p>
             <p onClick={() => navigate("/project-management")} className="cursor-pointer hover:underline">Project management</p>

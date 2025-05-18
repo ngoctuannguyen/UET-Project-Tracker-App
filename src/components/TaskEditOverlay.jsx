@@ -59,15 +59,14 @@ const TaskEditOverlay = ({ task, projectId, onClose, fetchProject }) => {
         ...formData,
         task_id: task.task_id,
       };
-
+      
       await axios.put(`/api/projects/${projectId}/tasks/${task.task_id}`, updatedTask);
 
       toast.success("Task updated successfully!");
       fetchProject();
       onClose();
     } catch (error) {
-      const errorMessage =
-      error.response?.data?.message || "An error occurred while updating the task.";
+      const errorMessage = error.response?.data?.error || "An error occurred while creating the task.";
       toast.error(errorMessage);
       // setError(errorMessage);
     }

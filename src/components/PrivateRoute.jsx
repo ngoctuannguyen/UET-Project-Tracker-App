@@ -1,13 +1,16 @@
-import { Navigate } from "react-router-dom";
+import React, { Children } from "react";
+import { Navigate, Outlet } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
-const PrivateRoute = ({ children, allowedRoles }) => {
-  const token = localStorage.getItem("token");
-  const role = localStorage.getItem("role");
+const PrivateRoute = ( {children, allowedRoles} ) => {
+  const { auth } = useAuth();
 
-  if (!token) {
-    return <Navigate to="/login" replace />;
+  // Kiểm tra nếu chưa đăng nhập, chuyển hướng đến trang login
+  if (!auth.idToken) {
+    return <Navigate to="/login" />;
   }
 
+  // Nếu đã đăng nhập, render các route con
   if (allowedRoles && !allowedRoles.includes(role)) {
     // Nếu role không được phép, điều hướng về trang chính
     return <Navigate to="/" replace />;

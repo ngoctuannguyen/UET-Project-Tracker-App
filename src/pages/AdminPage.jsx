@@ -1,31 +1,61 @@
-// src/pages/AdminPage.jsx
 import React, { useState } from "react";
-import { Pencil, Trash, Plus } from "lucide-react";
+import { Pencil, Trash, Plus, Ban, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
-import UserFormOverlay from "@/components/UserFormOverlay";
 import { useNavigate } from "react-router-dom";
+
+// Helper to generate random user_id
+const randomUserId = () => "U" + Math.random().toString(36).slice(2, 8).toUpperCase();
+
+const initialUsers = [
+  {
+    user_id: randomUserId(),
+    full_name: "Alice",
+    email: "alice@example.com",
+    birthday: "1995-01-01",
+    gender: "female",
+    role: "user",
+    status: "active",
+  },
+  {
+    user_id: randomUserId(),
+    full_name: "Bob",
+    email: "bob@example.com",
+    birthday: "1990-05-10",
+    gender: "male",
+    role: "manager",
+    status: "active",
+  },
+];
 
 const AdminPage = () => {
   const navigate = useNavigate();
-
-  const [users, setUsers] = useState([
-    { id: 1, name: "Alice", email: "alice@example.com", role: "user" },
-    { id: 2, name: "Bob", email: "bob@example.com", role: "manager" },
-  ]);
-
+  const [users, setUsers] = useState(initialUsers);
   const [editingUser, setEditingUser] = useState(null);
 
-  const handleDelete = (id) => {
-    setUsers(prev => prev.filter(user => user.id !== id));
+  const handleDelete = (user_id) => {
+    setUsers(prev => prev.filter(user => user.user_id !== user_id));
     toast.success("User deleted");
   };
 
+  const handleDisable = (user_id) => {
+    setUsers(prev =>
+      prev.map(user =>
+        user.user_id === user_id
+          ? { ...user, status: user.status === "active" ? "disabled" : "active" }
+          : user
+      )
+    );
+    toast.success("User status changed");
+  };
+
   const handleSave = (user) => {
-    if (user.id) {
-      setUsers(prev => prev.map(u => (u.id === user.id ? user : u)));
+    if (user.user_id) {
+      setUsers(prev =>
+        prev.map(u => (u.user_id === user.user_id ? { ...user } : u))
+      );
       toast.success("User updated");
     } else {
-      const newUser = { ...user, id: Date.now() };
+      const newUser = { ...user, user_id: randomUserId(), status: "active" };
       setUsers(prev => [...prev, newUser]);
       toast.success("User created");
     }
@@ -33,8 +63,6 @@ const AdminPage = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
     toast.success("Logged out successfully!");
     navigate("/login");
   };
@@ -63,28 +91,55 @@ const AdminPage = () => {
       <table className="w-full bg-white shadow rounded-lg overflow-hidden">
         <thead className="bg-gray-100 text-left">
           <tr>
-            <th className="p-4">Name</th>
+            <th className="p-4">User ID</th>
+            <th className="p-4">Full Name</th>
             <th className="p-4">Email</th>
+            <th className="p-4">Birthday</th>
+            <th className="p-4">Gender</th>
             <th className="p-4">Role</th>
+            <th className="p-4">Status</th>
             <th className="p-4 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {users.map(user => (
-            <tr key={user.id} className="border-t">
-              <td className="p-4">{user.name}</td>
+            <tr key={user.user_id} className="border-t">
+              <td className="p-4">{user.user_id}</td>
+              <td className="p-4">{user.full_name}</td>
               <td className="p-4">{user.email}</td>
+              <td className="p-4">{user.birthday}</td>
+              <td className="p-4 capitalize">{user.gender}</td>
               <td className="p-4 capitalize">{user.role}</td>
+              <td className="p-4 capitalize">
+                {user.status === "active" ? (
+                  <span className="text-green-600 flex items-center gap-1">
+                    <CheckCircle className="inline w-4 h-4" /> Active
+                  </span>
+                ) : (
+                  <span className="text-red-600 flex items-center gap-1">
+                    <Ban className="inline w-4 h-4" /> Disabled
+                  </span>
+                )}
+              </td>
               <td className="p-4 text-right space-x-2">
                 <button
                   onClick={() => setEditingUser(user)}
                   className="text-blue-600 hover:underline"
+                  title="Edit"
                 >
                   <Pencil className="inline w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => handleDelete(user.id)}
+                  onClick={() => handleDisable(user.user_id)}
+                  className="text-yellow-600 hover:underline"
+                  title={user.status === "active" ? "Disable" : "Enable"}
+                >
+                  <Ban className="inline w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(user.user_id)}
                   className="text-red-600 hover:underline"
+                  title="Delete"
                 >
                   <Trash className="inline w-4 h-4" />
                 </button>

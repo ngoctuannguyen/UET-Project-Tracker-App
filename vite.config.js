@@ -16,10 +16,14 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      "/auth": {
+        target: "htpp://localhost:3000/api",
+        changeOrigin: true
+      },
       "/api": {
         target: "http://localhost:3001",
         changeOrigin: true,
-      },
+      }
     }
   }
 })
