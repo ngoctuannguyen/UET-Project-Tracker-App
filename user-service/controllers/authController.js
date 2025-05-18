@@ -167,6 +167,49 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
+exports.updateUserProfile = async (req, res) => {
+  const idToken = req.cookies.idToken || req.headers.authorizations;
+  const { full_name, birthday } = req.body;
+
+  if (!idToken) {
+    return res.status(401).json({ error: "Người dùng chưa đăng nhập." });
+  }
+
+  try {
+    // Xác thực token với Firebase để lấy uid
+    const decodedToken = await axios.post(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.FIREBASE_API_KEY}`,
+      { idToken }
+    );
+    const user = decodedToken.data.users[0];
+    const uid = user.localId || user.userId || user.uid;
+
+    // Cập nhật thông tin trên Firestore (nếu bạn lưu thêm thông tin ở đây)
+    const userDocRef = firestoreService.collection("user_service").doc(uid);  
+    await userDocRef.set(
+      { full_name: full_name, birthday: birthday },
+      { merge: true }
+    );
+
+    // Lấy lại thông tin mới nhất
+    const updatedUser = await admin.auth().getUser(uid);
+    res.status(200).json({
+      message: "Cập nhật thông tin thành công",
+      user: {
+        uid: updatedUser.user_id,
+        email: updatedUser.email,
+        full_name: updatedUser.full_name,
+        gender: updatedUser.gender,
+        role: updatedUser.role,
+        birthday: updatedUser.birthday
+      },
+    });
+  } catch (error) {
+    console.error("Lỗi cập nhật thông tin người dùng:", error);
+    res.status(400).json({ error: "Cập nhật thông tin thất bại." });
+  }
+};
+
 //________________________________________________________________________________
 //forgot pass:
 
@@ -392,31 +435,16 @@ exports.getUserByUid = async (req, res) => {
   if (!uid) {
     return res.status(400).json({ error: "UID người dùng là bắt buộc." });
   }
-  // Tùy chọn: Kiểm tra quyền admin ở đây nếu cần
-  // const requesterUid = req.user.uid; // Người dùng đang thực hiện request
-  // const requesterDoc = await firestoreService.collection("user_service").doc(requesterUid).get();
-  // if (!requesterDoc.exists || requesterDoc.data().role !== "2") {
-  //   return res.status(403).json({ error: "Không có quyền truy cập thông tin người dùng này." });
-  // }
-
+  
   try {
-    const userDocRef = firestoreService.collection("user_service").doc(uid);
+    const userDocRef = firestoreService.collection("user_service").where("user_id", "==", uid);
     const userDoc = await userDocRef.get();
 
-    if (!userDoc.exists) {
-      // Thử lấy thông tin từ Firebase Auth nếu không có trong Firestore
-      const firebaseUser = await admin.auth().getUser(uid);
-      return res.status(200).json({
-        user: {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-          firestoreDataMissing: true,
-        },
-      });
+    if (userDoc.empty) {
+      return res.status(404).json({ error: "Không tìm thấy người dùng." });
     }
-    res.status(200).json({ user: userDoc.data() });
+
+    res.status(200).json({ data: userDoc.docs[0].data() });
   } catch (error) {
     console.error(`Lỗi lấy thông tin người dùng ${uid}:`, error);
     if (error.code === "auth/user-not-found") {

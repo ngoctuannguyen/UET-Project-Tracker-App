@@ -88,6 +88,27 @@ const projectController = {
         }
     },
 
+    updateProjectLeader: async (req, res) => {
+        try {
+            const updatedProject = await Project.change_leader(
+                req.params.projectId,
+                req.params.leaderId
+            );
+
+            await RabbitMQService.publishEvent('event.project.leader.updated', 
+                createEvent('PROJECT_LEADER_UPDATED', {
+                    projectId: req.params.projectId,
+                    leaderId: req.params.leaderId,
+                    data: updatedProject
+                })
+            );
+
+            res.status(200).json(updatedProject);
+        } catch (error) {
+            res.status(400).json({ message: error.message });
+        }
+    },
+
     // Delete project
     deleteProject: async (req, res) => {
         try {
@@ -131,6 +152,9 @@ const projectController = {
     // Remove employee from project
     removeEmployee: async (req, res) => {
         try {
+
+            console.log(req.params.employeeId);
+
             const updatedProject = await Project.remove_employee(
                 req.params.projectId,
                 req.params.employeeId
