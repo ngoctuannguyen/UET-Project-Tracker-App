@@ -9,9 +9,11 @@ const LoginPage = () => {
   const { login } = useAuth(); // Lấy hàm login từ AuthContext
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
 
     try {
       if (!email.includes("@") || password.length < 4) {
@@ -52,29 +54,31 @@ const LoginPage = () => {
         onSubmit={handleLogin}
         className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md"
       >
-        <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center">Đăng nhập</h2>
 
         <div className="mb-4">
           <label className="block mb-1 text-sm font-medium text-gray-700">Email</label>
           <input
             type="email"
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring"
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            disabled={isLoading}
           />
         </div>
 
         <div className="mb-6">
-          <label className="block mb-1 text-sm font-medium text-gray-700">Password</label>
+          <label className="block mb-1 text-sm font-medium text-gray-700">Mật khẩu</label>
           <input
             type="password"
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring"
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             placeholder="********"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            disabled={isLoading}
           />
         </div>
 

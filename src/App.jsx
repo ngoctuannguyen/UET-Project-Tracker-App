@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from "@/components/Layout";
 import Dashboard from '@/pages/Dashboard';
 import ProjectManagementPage from '@/pages/ProjectManagementPage';
@@ -10,7 +10,7 @@ import ProjectAnalysis from '@/pages/ProjectAnalysis';
 import PeopleOnThisProject from '@/pages/PeopleOnThisProject';
 import ProjectDescription from '@/pages/ProjectDescription';
 import LoginPage from "@/pages/LoginPage";
-import AdminPage from "@/pages/AdminPage";
+import AdminPage from "@/pages/AdminPage"; // Trang "HI, ADMIN" của bạn
 import { Toaster } from "sonner";
 import ChatGroupPage from "@/pages/ChatGroupPage";
 import ChatAIPage from "@/pages/ChatAIPage";
