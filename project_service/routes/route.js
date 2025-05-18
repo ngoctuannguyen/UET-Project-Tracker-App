@@ -25,11 +25,20 @@ router.post(
   ProjectMiddleware.validateEmployee,
   projectController.addEmployee
 );
+
+// Change Leader
+router.put(
+  '/projects/:projectId/leader/:leaderId',
+  ProjectMiddleware.validateLeader,
+  projectController.updateProjectLeader
+);
+
 router.delete(
   '/projects/:projectId/employees/:employeeId',
   ProjectMiddleware.validateEmployee,
   projectController.removeEmployee
 );
+
 router.delete(
   '/projects/:projectId/tasks/:taskId',
   ProjectMiddleware.checkProjectExists,

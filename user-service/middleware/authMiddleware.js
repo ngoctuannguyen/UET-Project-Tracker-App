@@ -10,7 +10,7 @@ const authMiddleware = async (req, res, next) => {
       req.originalUrl
     }`
   );
-  // console.log("AuthMiddleware: Headers:", JSON.stringify(req.headers, null, 2)); // Bỏ comment nếu cần debug sâu header
+  // console.log("AuthMiddleware: Headers:", JSON.stringify(authHeader)); // Bỏ comment nếu cần debug sâu header
 
   if (authHeader && authHeader.startsWith("Bearer ")) {
     idToken = authHeader.substring(7, authHeader.length);

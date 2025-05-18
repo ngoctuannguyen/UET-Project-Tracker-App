@@ -113,27 +113,35 @@ const ProjectMiddleware = {
     },
 
     // Authorization Middleware for Project Leaders
-    authorizeLeader: async (req, res, next) => {
+    validateLeader: async (req, res, next) => {
         try {
-            const projectId = req.params.projectId;
-            const projectDoc = await project_service.doc(projectId).get();
-            
-            if (!projectDoc.exists) {
-                return res.status(404).json({ error: 'Project not found' });
+            const leaderId = req.params.leaderId;
+                        
+            const response = await axios.get(`http://localhost:3000/api/auth/user/${leaderId}`, {
+                headers: {
+                    Authorization: req.headers.authorization || "" 
+                }
+            });
+
+            if (response.status !== 200) {
+                return res.status(404).json({ error: 'Không tồn tại mã nhân viên này' });
             }
 
-            const project = projectDoc.data();
-            if (project.project_leader !== req.user.uid && req.user.role !== 'admin') {
-                return res.status(403).json({ error: 'Unauthorized - Project leader access required' });
+            if (response.data.data.role !== "2") {
+                return res.status(404).json({ error: 'Người này không phải là quản lý' });
             }
 
-            req.project = project;
             next();
         } catch (error) {
-            console.error('Authorization error:', error);
+            if (error.response) {
+                console.error('API error:', error.response.status, error.response.data);
+            } else {
+                console.error('Axios error:', error.message);
+            }
             res.status(500).json({ error: 'Internal server error' });
         }
     },
+
 
     // Check Project Existence
     checkProjectExists: async (req, res, next) => {
@@ -158,15 +166,19 @@ const ProjectMiddleware = {
     validateEmployee: async (req, res, next) => {
         try {
             const employeeId = req.params.employeeId;
-            
+
             const response = await axios.get(`http://localhost:3000/api/auth/user/${employeeId}`, {
                 headers: {
                     Authorization: req.headers.authorization || "" 
                 }
             });
 
-            if (response.status !== 200 || response.data.data.role !== "1") {
+            if (response.status !== 200) {
                 return res.status(404).json({ error: 'Không tồn tại mã nhân viên này' });
+            }
+
+            if (response.data.data.role !== "1") {
+                return res.status(404).json({ error: 'Người này không phải nhân viên' });
             }
 
             next();
