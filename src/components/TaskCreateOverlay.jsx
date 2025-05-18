@@ -8,9 +8,10 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
   const [assignee, setAssignee] = useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [taskId, setTaskId] = useState("");
 
   const handleCreateTask = async () => {
-    if (!taskTitle || !assignee || !dueDate || !startDate) {
+    if (!taskTitle || !assignee || !dueDate || !startDate || !taskId) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -18,6 +19,7 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
     try {
       // Prepare the request body
       const requestBody = {
+        taskId: taskId,
         work_description: taskTitle,
         employee_id: assignee,
         deadline: dueDate,
@@ -61,6 +63,17 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
           </div>
 
           <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">Task ID</label>
+            <input
+              type="text"
+              value={taskId}
+              onChange={(e) => setTaskId(e.target.value)}
+              className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring focus:border-blue-300"
+              placeholder="Enter task title"
+            />
+          </div>
+
+          <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">Assignee</label>
             <input
               type="text"
@@ -72,7 +85,7 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">Due Date</label>
+            <label className="block mb-1 text-sm font-medium text-gray-700">Start Date</label>
             <input
               type="date"
               value={startDate}
@@ -82,7 +95,7 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">Work Description</label>
+            <label className="block mb-1 text-sm font-medium text-gray-700">Due Date</label>
             <input
               type="date"
               value={dueDate}
@@ -90,7 +103,6 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
               className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring focus:border-blue-300"
             />
           </div>
-
         </div>
 
         {/* Buttons */}
