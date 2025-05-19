@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const serviceAccount = require('../AccountKey.json');
+const serviceAccount = require('../groovy-student-419204-firebase-adminsdk-fbsvc-ce33385485.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)

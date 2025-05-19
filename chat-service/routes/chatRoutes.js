@@ -18,6 +18,7 @@ router.put(
   authMiddleware,
   chatController.addGroupMember
 ); // validateGroup có thể không cần ở đây hoặc cần middleware riêng
+
 router.get("/groups/:groupId", authMiddleware, chatController.getGroupById);
 // Đảm bảo :userId trong route này được so sánh với req.user.uid trong controller để bảo mật
 router.get(
@@ -38,7 +39,7 @@ router.delete(
 router.delete("/groups/:groupId", authMiddleware, chatController.removeGroup);
 router.delete(
   "/groups/:groupId/members",
-  authMiddleware,
+  // authMiddleware,
   chatController.removeGroupMember
 );
 router.get("/groups", authMiddleware, chatController.getAllGroups); // Cân nhắc nếu route này thực sự cần thiết và ai có quyền truy cập
