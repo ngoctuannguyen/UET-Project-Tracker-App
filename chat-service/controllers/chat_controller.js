@@ -79,6 +79,44 @@ const chatController = {
     }
   },
 
+  addGroupMemberInternal: async (req, res) => {
+    try {
+      const groupId = req.params.groupId;
+      const memberIdToAdd = req.body.member; // UID của người cần thêm
+
+      if (!memberIdToAdd) {
+        return res.status(400).json({ error: "Member ID to add is required." });
+      }
+
+      const groupDoc = await Group.getById(groupId);
+      if (!groupDoc) {
+        return res.status(404).json({ error: "Group not found." });
+      }
+
+      // Logic kiểm tra quyền: Chỉ admin của nhóm mới được thêm thành viên
+      // if (!groupDoc.admin || !groupDoc.admin.includes(requestingUserUid)) {
+      //   return res
+      //     .status(403)
+      //     .json({ error: "Forbidden: Only group admins can add members." });
+      // }
+
+      // Kiểm tra xem người dùng đã là thành viên chưa
+      if (groupDoc.members && groupDoc.members.includes(memberIdToAdd)) {
+        return res
+          .status(400)
+          .json({ error: "User is already a member of this group." });
+      }
+
+      const updatedGroup = await Group.addMember(groupId, memberIdToAdd);
+      res.json(updatedGroup);
+    } catch (error) {
+      console.error("Error adding group member:", error);
+      res
+        .status(500)
+        .json({ error: "Failed to add group member: " + error.message });
+    }
+  },
+
   getGroupById: async (req, res) => {
     try {
       const groupId = req.params.groupId;
@@ -340,6 +378,64 @@ const chatController = {
           error: "Forbidden: Only group admins can remove other members.",
         });
       }
+
+      if (!groupDoc.members || !groupDoc.members.includes(memberIdToRemove)) {
+        return res
+          .status(400)
+          .json({ error: "User is not a member of this group." });
+      }
+
+      const updatedGroup = await Group.removeMember(groupId, memberIdToRemove);
+      res.json(updatedGroup);
+    } catch (error) {
+      console.error("Error removing group member:", error);
+      res
+        .status(500)
+        .json({ error: "Failed to remove group member: " + error.message });
+    }
+  },
+
+  removeGroupMemberInternal: async (req, res) => {
+    try {
+      const groupId = req.params.groupId;
+      const memberIdToRemove = req.body.member; // UID của người cần xóa
+
+      if (!memberIdToRemove) {
+        return res
+          .status(400)
+          .json({ error: "Member ID to remove is required." });
+      }
+
+      const groupDoc = await Group.getById(groupId);
+      if (!groupDoc) {
+        return res.status(404).json({ error: "Group not found." });
+      }
+
+      // Logic kiểm tra quyền:
+      // 1. Admin của nhóm có thể xóa bất kỳ thành viên nào (trừ khi đó là admin cuối cùng và đang cố xóa chính mình)
+      // 2. Thành viên có thể tự xóa mình khỏi nhóm
+      // const isRequestingUserAdmin =
+      //   groupDoc.admin && groupDoc.admin.includes(requestingUserUid);
+
+      // if (requestingUserUid === memberIdToRemove) {
+      //   // User tự rời nhóm
+      //   // Kiểm tra nếu user tự rời là admin cuối cùng
+      //   if (
+      //     groupDoc.admin &&
+      //     groupDoc.admin.includes(memberIdToRemove) &&
+      //     groupDoc.admin.length === 1
+      //   ) {
+      //     return res.status(400).json({
+      //       error:
+      //         "Cannot leave group as the last admin. Assign another admin first or delete the group.",
+      //     });
+      //   }
+      // } else if (!isRequestingUserAdmin) {
+      //   // Người khác xóa member, người yêu cầu phải là admin
+      //   return res.status(403).json({
+      //     error: "Forbidden: Only group admins can remove other members.",
+      //   });
+      // }
 
       if (!groupDoc.members || !groupDoc.members.includes(memberIdToRemove)) {
         return res
