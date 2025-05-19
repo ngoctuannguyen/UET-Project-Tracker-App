@@ -13,10 +13,11 @@ const projectController = {
     createProject: async (req, res) => {
         try {
             const projectData = req.body;
+            const authorization = req.headers.authorization;
             const newProject = await Project.create(projectData);
 
             await RabbitMQService.publishEvent('event.project.created', 
-                createEvent('PROJECT_CREATED', newProject)
+                createEvent('PROJECT_CREATED', {...newProject, authorization})
             );
 
             res.status(201).json(newProject);
@@ -152,9 +153,6 @@ const projectController = {
     // Remove employee from project
     removeEmployee: async (req, res) => {
         try {
-
-            console.log(req.params.employeeId);
-
             const updatedProject = await Project.remove_employee(
                 req.params.projectId,
                 req.params.employeeId
