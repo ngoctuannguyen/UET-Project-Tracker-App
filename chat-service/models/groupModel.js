@@ -153,6 +153,40 @@ class Group {
     return { id: docSnapshot.id, ...docSnapshot.data() };
   }
 
+  static async changeAdmin(groupId, newAdminId) {
+      const groupRef = chat_service.doc(groupId);
+      const docSnapshot = await groupRef.get();
+      if (!docSnapshot.exists) {
+          throw new Error("Group not found");
+      }
+
+      const groupData = docSnapshot.data();
+      const currentMembers = Array.isArray(groupData.members) ? groupData.members : [];
+      const currentAdmins = Array.isArray(groupData.admin) ? groupData.admin : [];
+
+      // 1. Add new admin as member if not already
+      let updatedMembers = currentMembers;
+      if (!currentMembers.includes(newAdminId)) {
+          updatedMembers = [...currentMembers, newAdminId];
+      }
+
+      // 2. Remove all old admins from members (trừ newAdminId)
+      const adminsToRemove = currentAdmins.filter(id => id !== newAdminId);
+      updatedMembers = updatedMembers.filter(memberId => !adminsToRemove.includes(memberId));
+
+      // 3. Set only newAdminId as admin
+      const updatedAdmins = [newAdminId];
+
+      // 4. Update Firestore
+      await groupRef.update({
+          members: updatedMembers,
+          admin: updatedAdmins
+      });
+
+      const updatedDoc = await groupRef.get();
+      return { id: updatedDoc.id, ...updatedDoc.data() };
+  }
+
   static async getById(groupId) {
     const groupRef = chat_service.doc(groupId);
     const docSnapshot = await groupRef.get();

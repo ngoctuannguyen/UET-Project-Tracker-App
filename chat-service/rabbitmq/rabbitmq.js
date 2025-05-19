@@ -40,20 +40,21 @@ class RabbitMQService {
             switch (routingKey) {
                 case 'event.project.employee.added': {
                     const { projectId, employeeId } = event.payload;
-                    await axios.put(`${apiBase}/groups/${projectId}/members`, { member: employeeId });
+                    await axios.put(`${apiBase}/internal/groups/${projectId}/members`,
+                            { member: employeeId });
                     break;
                 }
                 case 'event.project.employee.removed': {
                     const { projectId, employeeId } = event.payload;
-                    await axios.delete(`${apiBase}/groups/${projectId}/members`, { 
+                    await axios.delete(`${apiBase}/internal/groups/${projectId}/members`, { 
                         data: { 
                             member: employeeId 
                         }});
                     break;
                 }
                 case 'event.project.admin.changed': {
-                    const { projectId, newAdminId } = event.payload;
-                    await axios.put(`${apiBase}/group/change-admin`, { projectId: projectId, admin: newAdminId });
+                    const { projectId, leaderId } = event.payload;
+                    await axios.put(`${apiBase}/internal/groups/${projectId}/change-admin`, { admin: leaderId });
                     break;
                 }
                 default:

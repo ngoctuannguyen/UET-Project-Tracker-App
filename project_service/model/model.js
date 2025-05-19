@@ -266,6 +266,14 @@ class Project {
         return projectRef.get().then(doc => doc.data());
     }
 
+    static async editDescription(projectId, project_description) {
+        const projectRef = project_service.doc(projectId);
+        await projectRef.update({
+            project_description: project_description
+        });
+        return projectRef.get().then(doc => doc.data());
+    }
+
     static async getAll() {
         const projectsSnapshot = await project_service.get();
         const projects = projectsSnapshot.docs.map(doc => {
