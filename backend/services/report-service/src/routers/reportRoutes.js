@@ -24,7 +24,11 @@ router.delete(
   "/reports/product/:componentCode",
   reportController.deleteReportOfComponent
 );
-router.post("/submit-report", reportController.submitReportNormal);
+router.post(
+  "/submit-report",
+  reportController.upload.none(), // <<< THAY ĐỔI Ở ĐÂY
+  reportController.submitReportNormal
+);
 router.get(
   "/component-details/:componentCode",
   reportController.getComponentDetails

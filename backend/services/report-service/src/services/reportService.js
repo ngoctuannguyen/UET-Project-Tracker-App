@@ -42,47 +42,47 @@ const deleteReportbyComponentId = async (componentCode) => {
   }
 };
 // Gửi báo cáo
-async function submitReport(componentCode, content, employeeIdInput) {
-  // Đổi tên tham số để rõ ràng hơn
-  try {
-    // Tìm Component theo componentCode
-    const component = await Component.findOne({ where: { componentCode } });
-    if (!component) {
-      return { success: false, message: "Component not found" };
-    }
+// async function submitReport(componentCode, content, employeeIdInput) {
+//   // Đổi tên tham số để rõ ràng hơn
+//   try {
+//     // Tìm Component theo componentCode
+//     const component = await Component.findOne({ where: { componentCode } });
+//     if (!component) {
+//       return { success: false, message: "Component not found" };
+//     }
 
-    // Sử dụng employeeIdInput nếu nó là một số hợp lệ, ngược lại dùng 1
-    // Hoặc đơn giản là luôn dùng 1 cho mục đích test hiện tại
-    const finalEmployeeId = 1; // <<< THAY ĐỔI: Luôn sử dụng 1 cho employeeId
+//     // Sử dụng employeeIdInput nếu nó là một số hợp lệ, ngược lại dùng 1
+//     // Hoặc đơn giản là luôn dùng 1 cho mục đích test hiện tại
+//     const finalEmployeeId = 1; // <<< THAY ĐỔI: Luôn sử dụng 1 cho employeeId
 
-    // Tạo báo cáo mới
-    const newReport = await Report.create({
-      content,
-      employeeId: finalEmployeeId, // Sử dụng giá trị đã quyết định
-      componentCode: component.componentCode,
-      reportAt: new Date(),
-    });
+//     // Tạo báo cáo mới
+//     const newReport = await Report.create({
+//       content,
+//       employeeId: finalEmployeeId, // Sử dụng giá trị đã quyết định
+//       componentCode: component.componentCode,
+//       reportAt: new Date(),
+//     });
 
-    if (component.is_completed !== 1 && component.is_completed !== true) {
-      component.is_completed = 1;
-      await component.save();
-      console.log(`Component ${componentCode} status updated to completed.`);
-    }
+//     if (component.is_completed !== 1 && component.is_completed !== true) {
+//       component.is_completed = 1;
+//       await component.save();
+//       console.log(`Component ${componentCode} status updated to completed.`);
+//     }
 
-    return {
-      success: true,
-      report: newReport,
-    };
-  } catch (error) {
-    console.error("Error submitting report and updating component:", error);
-    // Trả về thông điệp lỗi cụ thể từ DB nếu có
-    const dbErrorMessage = error.original?.sqlMessage || error.message;
-    return {
-      success: false,
-      message: "Error submitting report: " + dbErrorMessage,
-    };
-  }
-}
+//     return {
+//       success: true,
+//       report: newReport,
+//     };
+//   } catch (error) {
+//     console.error("Error submitting report and updating component:", error);
+//     // Trả về thông điệp lỗi cụ thể từ DB nếu có
+//     const dbErrorMessage = error.original?.sqlMessage || error.message;
+//     return {
+//       success: false,
+//       message: "Error submitting report: " + dbErrorMessage,
+//     };
+//   }
+// }
 
 // Gọi API nhận diện ảnh để lấy mã barcode
 const scanBarcodeFromImage = async (imagePath) => {
@@ -209,39 +209,103 @@ const updateProgress = async (componentCode) => {
 const getComponentDetailsByBarcode = async (componentCode) => {
   try {
     const component = await Component.findOne({
-      where: { componentCode },
+      where: { componentCode: componentCode },
       include: [
         {
           model: Product,
-          attributes: ["productCode", "name"], // Chỉ lấy các trường cần thiết từ Product
-          required: true, // Đảm bảo rằng component phải thuộc về một product
+          as: "Product", // <<< Sử dụng alias "Product" (viết hoa chữ P)
+          attributes: ["productCode", "name"], // Giả sử tên trường trong Product model là "name"
         },
       ],
-      attributes: ["componentCode", "name", "productCode"], // Lấy các trường cần thiết từ Component
     });
 
     if (!component) {
-      return {
-        success: false,
-        message: "Component not found or not associated with a product.",
-      };
+      return { success: false, message: "Component not found." };
     }
 
-    // Trả về dữ liệu có cấu trúc rõ ràng
-    return {
-      success: true,
-      details: {
-        componentCode: component.componentCode,
-        componentName: component.name,
-        productCode: component.Product.productCode, // Dữ liệu Product nằm trong component.Product do include
-        productName: component.Product.name,
-      },
+    const details = {
+      componentId: component.componentId,
+      componentCode: component.componentCode,
+      componentName: component.name, // Giả sử tên trường trong Component model là "name"
+      productCode: component.Product?.productCode || "N/A",
+      productName: component.Product?.name || "N/A", // Truy cập qua component.Product.name
+      is_complete: component.is_completed,
     };
+
+    return { success: true, details: details };
   } catch (error) {
     console.error("Error fetching component details by barcode:", error);
     return {
       success: false,
-      message: "Error fetching component details: " + error.message,
+      message: "Server error fetching component details.",
+    };
+  }
+};
+
+const submitReport = async (reportData) => {
+  try {
+    const { reportText, imagePath, componentCode, employeeId } = reportData;
+
+    if (!reportText) {
+      // <<< THÊM: Kiểm tra reportText
+      return { success: false, message: "Report text is required." };
+    }
+    if (!componentCode) {
+      return { success: false, message: "Component code is required." };
+    }
+    if (!employeeId) {
+      return { success: false, message: "Employee ID is required." };
+    }
+
+    // Không cần tìm component nữa nếu FK trong Report là componentCode
+    // và bạn không cần lấy componentId (INTEGER)
+    // const component = await Component.findOne({
+    //   where: { componentCode: componentCode },
+    // });
+    // if (!component) {
+    //   return { success: false, message: "Component not found." };
+    // }
+
+    const newReport = await Report.create({
+      reportText: reportText, // <<< SỬA: Đảm bảo tên trường khớp với model
+      imagePath: imagePath,
+      componentCode: componentCode, // <<< SỬA: Sử dụng trực tiếp componentCode
+      employeeId: employeeId,
+      reportAt: new Date(), // <<< SỬA: Đảm bảo tên trường khớp với model
+    });
+    // <<< THÊM LOGIC CẬP NHẬT COMPONENT SAU KHI TẠO REPORT THÀNH CÔNG >>>
+    if (newReport) {
+      const component = await Component.findOne({
+        where: { componentCode: componentCode },
+      });
+      if (component) {
+        // Chỉ cập nhật nếu component chưa được đánh dấu là hoàn thành
+        // Model Component định nghĩa is_completed là BOOLEAN
+        if (component.is_completed !== true) {
+          component.is_completed = true; // Cập nhật thành true
+          await component.save();
+          console.log(
+            `Component ${componentCode} status updated to completed.`
+          );
+        }
+      } else {
+        // Ghi log cảnh báo nếu không tìm thấy component, nhưng vẫn coi việc gửi report là thành công
+        console.warn(
+          `Component ${componentCode} not found for status update after report submission.`
+        );
+      }
+    }
+    return { success: true, report: newReport };
+  } catch (error) {
+    console.error("Error submitting report in service:", error);
+    // Trả về thông điệp lỗi cụ thể hơn từ Sequelize nếu có
+    const errorMessage =
+      error.errors && error.errors.length > 0
+        ? error.errors.map((e) => e.message).join(", ")
+        : error.message;
+    return {
+      success: false,
+      message: "Error submitting report in service: " + errorMessage,
     };
   }
 };

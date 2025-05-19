@@ -145,33 +145,48 @@ const deleteReportOfComponent = async (req, res) => {
 };
 
 const submitReportNormal = async (req, res) => {
-  const { barcode, reportText, employeeId } = req.body; // employeeId từ frontend sẽ được service bỏ qua
-
-  if (!barcode || !reportText) {
-    return res.status(400).json({
-      success: false,
-      message: "Barcode and report text are required",
-    });
-  }
-
   try {
-    // Service sẽ sử dụng employeeId = 1 bất kể giá trị employeeId truyền vào ở đây
-    const result = await submitReport(barcode, reportText, employeeId);
-    if (!result.success) {
-      // Service đã trả về message lỗi cụ thể
-      return res.status(400).json({ success: false, message: result.message });
+    console.log(
+      "[reportController] submitReportNormal - Received body:",
+      JSON.stringify(req.body, null, 2)
+    );
+    const {
+      reportText,
+      imagePath, // Vẫn giữ lại nếu bạn muốn lưu đường dẫn ảnh gốc
+      componentCode, // Barcode
+      userId, // <<< THÊM: Nhận userId từ client
+    } = req.body;
+
+    if (!reportText || !componentCode || !userId) {
+      // <<< THÊM: Kiểm tra userId
+      return res.status(400).json({
+        success: false,
+        message: "Report text, component code, and user ID are required.",
+      });
     }
-    res.status(201).json({
-      success: true,
-      message: "Report submitted and component status updated successfully",
-      report: result.report,
+
+    // Gọi service để lưu report, truyền thêm userId
+    const reportResult = await submitReport({
+      reportText,
+      imagePath, // Có thể là null nếu không có ảnh kèm theo báo cáo này
+      componentCode,
+      employeeId: userId, // <<< THAY ĐỔI: Truyền userId làm employeeId
     });
+
+    if (reportResult.success) {
+      res.status(201).json({
+        success: true,
+        message: "Report submitted successfully!",
+        report: reportResult.report,
+      });
+    } else {
+      res.status(500).json({ success: false, message: reportResult.message });
+    }
   } catch (error) {
-    // Lỗi này thường là lỗi không mong muốn trong controller
-    console.error("Unexpected error in submitReportNormal controller:", error);
+    console.error("Error submitting normal report:", error);
     res
       .status(500)
-      .json({ success: false, message: "Server error submitting the report" });
+      .json({ success: false, message: "Failed to submit report." });
   }
 };
 
