@@ -47,16 +47,50 @@ class _ManualBarcodeScreenState extends State<ManualBarcodeScreen> {
 
       if (!mounted) return;
 
-      final responseData = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] == true &&
+            responseData['details'] != null) {
+          setState(() {
+            _componentDetails = Map<String, dynamic>.from(
+              responseData['details'],
+            );
+            _isLoading = false;
+            _errorMessage = null; // Xóa thông báo lỗi nếu thành công
+          });
 
-      if (response.statusCode == 200 && responseData['success'] == true) {
-        setState(() {
-          _componentDetails = responseData['details'];
-        });
+          // <<< THÊM: Kiểm tra is_complete >>>
+          final dynamic isCompleteValue = _componentDetails!['is_complete'];
+          bool componentIsComplete = false;
+          if (isCompleteValue is bool) {
+            componentIsComplete = isCompleteValue;
+          } else if (isCompleteValue is int) {
+            componentIsComplete = isCompleteValue == 1;
+          } else if (isCompleteValue is String) {
+            componentIsComplete = isCompleteValue == "1";
+          }
+
+          if (componentIsComplete) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Thành phần này đã hoàn thành!')),
+              );
+              // Quay lại CameraScreen hoặc màn hình trước đó phù hợp
+              // Nếu ManualBarcodeScreen được mở từ CameraScreen hoặc một màn hình có thể quay lại CameraScreen
+              Navigator.of(context).popUntil(ModalRoute.withName('/camera'));
+              return; // Dừng xử lý
+            }
+          }
+        } else {
+          setState(() {
+            _errorMessage =
+                responseData['message'] ??
+                'Không tìm thấy thông tin component.';
+          });
+        }
       } else {
         setState(() {
-          _errorMessage =
-              responseData['message'] ?? 'Không tìm thấy thông tin component.';
+          _errorMessage = 'Lỗi HTTP: ${response.statusCode}';
         });
       }
     } catch (e) {

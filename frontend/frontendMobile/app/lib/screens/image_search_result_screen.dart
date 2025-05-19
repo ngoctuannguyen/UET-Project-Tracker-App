@@ -114,11 +114,36 @@ class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200 && responseData['success'] == true) {
-        _scannedBarcode = responseData['barcode']; // Lưu barcode quét được
+        _scannedBarcode = responseData['barcode'];
         if (responseData['componentDetails'] != null) {
           _componentDetails = Map<String, dynamic>.from(
             responseData['componentDetails'],
-          ); // Lưu chi tiết component
+          );
+
+          // <<< THÊM: Kiểm tra is_complete >>>
+          // Giả sử is_complete là kiểu số (0 hoặc 1) hoặc boolean
+          final dynamic isCompleteValue = _componentDetails!['is_complete'];
+          bool componentIsComplete = false;
+          if (isCompleteValue is bool) {
+            componentIsComplete = isCompleteValue;
+          } else if (isCompleteValue is int) {
+            componentIsComplete = isCompleteValue == 1;
+          } else if (isCompleteValue is String) {
+            componentIsComplete = isCompleteValue == "1";
+          }
+
+          if (componentIsComplete) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Thành phần này đã hoàn thành!')),
+              );
+              // Quay lại CameraScreen
+              // Đảm bảo CameraScreen có route name là '/camera' hoặc bạn có cách khác để pop về nó
+              Navigator.of(context).popUntil(ModalRoute.withName('/camera'));
+              return; // Dừng xử lý thêm nếu đã hoàn thành
+            }
+          }
+          // Nếu không hoàn thành, tiếp tục hiển thị thông tin
           setState(() {
             _searchResult =
                 "Barcode: ${_componentDetails!['componentCode']}\n"

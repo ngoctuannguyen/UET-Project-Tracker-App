@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'dart:io'; // Import dart:io for File
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart'; // Import for MediaType
 import 'package:app/models/user_model.dart'; // Import UserModel
+import 'package:firebase_auth/firebase_auth.dart'; // Để lấy user ID
 
 class ReportScreen extends StatefulWidget {
   final String? imagePath; // <<< THAY ĐỔI: imagePath thành nullable
@@ -25,9 +27,10 @@ class ReportScreen extends StatefulWidget {
 class _ReportScreenState extends State<ReportScreen> {
   final TextEditingController _reportContentController =
       TextEditingController();
-  bool _isLoading = false;
+  // bool _isLoading = false; // Sẽ dùng _isSubmitting thay thế
   bool _isSuccess = false;
-  Map<String, dynamic>? _componentDetails; // Thêm biến để lưu trữ thông tin
+  bool _isSubmitting = false; // Đã có
+  // Map<String, dynamic>? _componentDetails; // Thêm biến để lưu trữ thông tin
 
   static final String _reportServiceBaseUrl =
       kIsWeb ? 'http://localhost:3004' : 'http://10.0.2.2:3004';
@@ -67,92 +70,141 @@ class _ReportScreenState extends State<ReportScreen> {
       return;
     }
 
-    if (!mounted) return;
+    final String? customUserId = widget.currentUser?.userId;
+
+    if (customUserId == null || customUserId.isEmpty) {
+      if (!mounted) return; // Thêm kiểm tra mounted
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Không thể lấy User ID (mã người dùng) để gửi báo cáo.',
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() {
-      _isLoading = true;
-      _isSuccess = false;
+      _isSubmitting = true;
+      _isSuccess = false; // Reset _isSuccess khi bắt đầu gửi mới
     });
 
     try {
-      final reportContent = _reportContentController.text;
-      // Lấy employeeId từ currentUser.userId. Backend sẽ dùng default nếu null/undefined.
-      // Đảm bảo kiểu dữ liệu của employeeId phù hợp với backend.
-      // Nếu backend service `submitReport` mong đợi một số nguyên và userId là string,
-      // bạn có thể cần parse nó. Tuy nhiên, service hiện tại có default là 1.
-      final String? employeeId = widget.currentUser?.userId;
-
-      final response = await http.post(
-        Uri.parse(
-          '$_reportServiceBaseUrl/api/submit-report',
-        ), // <<< Đảm bảo endpoint này đúng
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode(<String, dynamic>{
-          'reportText': reportContent,
-          'barcode': widget.scannedComponentCode, // Backend mong đợi 'barcode'
-          'employeeId': employeeId, // Gửi employeeId, backend sẽ xử lý nếu null
-        }),
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$_reportServiceBaseUrl/api/submit-report'),
       );
 
-      print('--- Gửi Báo Cáo (Text) Lên Backend ---');
-      print('URL: $_reportServiceBaseUrl/api/submit-report');
-      print('Nội dung (reportText): $reportContent');
-      print('Component Code (barcode): ${widget.scannedComponentCode}');
-      print('Employee ID: $employeeId');
-      print('------------------------------------');
-      print('Mã trạng thái phản hồi từ Backend: ${response.statusCode}');
-      print('Nội dung phản hồi từ Backend: ${response.body}');
+      request.fields['reportText'] = _reportContentController.text;
+      if (widget.scannedComponentCode != null) {
+        request.fields['componentCode'] = widget.scannedComponentCode!;
+      }
+      request.fields['userId'] = customUserId;
 
-      if (!mounted) return;
+      print('--- Submitting Report ---');
+      print('Report Text: ${_reportContentController.text}');
+      print('Component Code: ${widget.scannedComponentCode}');
+      print('User ID (Custom User ID to be sent as userId): $customUserId');
+      print('-------------------------');
+
+      if (widget.imagePath != null && !kIsWeb) {
+        File imageFile = File(widget.imagePath!);
+        if (await imageFile.exists()) {
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              'reportImage',
+              widget.imagePath!,
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+        }
+      } else if (widget.imagePath != null && kIsWeb) {
+        print(
+          "Web image path: ${widget.imagePath} - Currently not re-uploading in report submission for web.",
+        );
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
       final responseData = jsonDecode(response.body);
 
-      // Backend trả về 201 Created khi tạo resource thành công
       if (response.statusCode == 201 && responseData['success'] == true) {
         setState(() {
-          _isLoading = false;
-          _isSuccess = true;
+          _isSuccess = true; // Đặt thành công
+          _isSubmitting = false; // Dừng loading
         });
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              responseData['message'] ??
-                  'Gửi báo cáo và cập nhật component thành công!',
-            ),
-            backgroundColor: Colors.green,
-          ),
+          const SnackBar(content: Text('Báo cáo đã được gửi thành công!')),
         );
-        Timer(const Duration(seconds: 2), () {
-          if (mounted && Navigator.canPop(context)) {
-            Navigator.pop(context, true);
-          }
-        });
+        // Đợi một chút để người dùng thấy tick xanh rồi mới điều hướng
+        await Future.delayed(const Duration(seconds: 2));
+        if (!mounted) return;
+        // Navigator.of(context).popUntil(
+        //   (route) => route.isFirst,
+        // );
+        // Điều hướng về CameraScreen
+        // Đảm bảo CameraScreen có một route name được định nghĩa trong MaterialApp
+        // Ví dụ: '/camera_screen'
+        // Hoặc nếu CameraScreen là màn hình trước đó trong stack, bạn có thể dùng pop nhiều lần
+        // Để đơn giản, nếu CameraScreen là màn hình gốc của tab hoặc một màn hình cố định,
+        // bạn có thể dùng Navigator.pushAndRemoveUntil hoặc popUntil với tên route cụ thể.
+        // Giả sử CameraScreen là màn hình đầu tiên trong stack hiện tại của tab này:
+        if (Navigator.canPop(context)) {
+          // Pop cho đến khi về màn hình CameraScreen, giả sử nó là root của một navigator lồng nhau
+          // hoặc là màn hình trước ReportScreen.
+          // Nếu CameraScreen là màn hình gốc của ứng dụng (màn hình đầu tiên sau khi login)
+          // thì popUntil route.isFirst là đúng.
+          // Nếu bạn muốn quay lại màn hình Camera cụ thể, bạn cần một cách xác định nó.
+          // Ví dụ, nếu CameraScreen là màn hình ngay trước ReportScreen:
+          // Navigator.of(context).pop(); // Pop ReportScreen
+          // Navigator.of(context).pop(); // Pop màn hình trước đó (ví dụ ImageSearchResultScreen)
+          // Điều này phụ thuộc vào cách bạn điều hướng đến ReportScreen.
+
+          // Cách an toàn hơn là pop về root của navigator hiện tại (thường là HomeScreen hoặc màn hình tab chính)
+          // và sau đó có thể điều hướng lại CameraScreen nếu cần từ đó.
+          // Hoặc nếu bạn biết tên route của CameraScreen:
+          // Navigator.of(context).popUntil(ModalRoute.withName('/camera_screen'));
+          // Hiện tại, để quay về màn hình trước đó (có thể là ImageSearchResultScreen hoặc ManualInputScreen)
+          // rồi từ đó người dùng có thể quay lại Camera.
+          // Hoặc nếu bạn muốn quay thẳng về màn hình gốc:
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
       } else {
-        throw Exception(
-          responseData['message'] ?? 'Gửi báo cáo thất bại từ server.',
-        );
-      }
-    } catch (error) {
-      print("Lỗi khi gửi báo cáo lên backend: $error");
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Gửi báo cáo thất bại: ${error.toString().substring(0, (error.toString().length > 100) ? 100 : error.toString().length)}...',
-            ),
-            backgroundColor: Colors.red,
+            content: Text(responseData['message'] ?? 'Gửi báo cáo thất bại.'),
           ),
         );
+        setState(() {
+          // Dừng loading khi thất bại
+          _isSubmitting = false;
+        });
       }
+    } catch (e) {
+      print("Lỗi khi gửi báo cáo: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lỗi khi gửi báo cáo: $e')));
+      setState(() {
+        // Dừng loading khi có lỗi
+        _isSubmitting = false;
+      });
     }
+    // finally { // Không cần finally nữa vì đã xử lý setState trong try/catch
+    //   if (mounted){
+    //     setState(() {
+    //       _isSubmitting = false;
+    //     });
+    //   }
+    // }
   }
 
   @override
   Widget build(BuildContext context) {
-    const String managerName = "Nguyễn Văn A";
+    const String defaultManagerName = "Người quản lý"; // Đổi tên mặc định
 
     return Scaffold(
       appBar: AppBar(
@@ -161,7 +213,8 @@ class _ReportScreenState extends State<ReportScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            if (!_isLoading) {
+            if (!_isSubmitting) {
+              // Chỉ cho phép pop nếu không đang gửi
               Navigator.pop(context);
             }
           },
@@ -185,8 +238,6 @@ class _ReportScreenState extends State<ReportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Hiển thị ảnh đã chụp (tùy chọn)
-              // <<< THAY ĐỔI: Kiểm tra imagePath trước khi hiển thị >>>
               if (widget.imagePath != null && widget.imagePath!.isNotEmpty) ...[
                 const Text(
                   'Ảnh tham chiếu:',
@@ -233,28 +284,35 @@ class _ReportScreenState extends State<ReportScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      widget.currentUser?.fullName ??
-                          managerName, // Sử dụng tên user nếu có
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      // Cho phép Text co giãn nếu tên dài
+                      child: Text(
+                        widget.currentUser?.fullName ?? defaultManagerName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis, // Chống tràn text
                       ),
                     ),
-                    if (_isLoading)
+                    // <<< THAY ĐỔI HIỂN THỊ ICON Ở ĐÂY >>>
+                    if (_isSubmitting) // Nếu đang gửi
                       const SizedBox(
                         width: 24,
                         height: 24,
                         child: CircularProgressIndicator(strokeWidth: 3),
                       )
-                    else if (_isSuccess)
+                    else if (_isSuccess) // Nếu gửi thành công
                       const Icon(
                         Icons.check_circle,
                         color: Colors.green,
                         size: 28,
                       )
-                    else
-                      const SizedBox(width: 24, height: 24),
+                    else // Trạng thái bình thường hoặc thất bại (không hiển thị gì thêm)
+                      const SizedBox(
+                        width: 24,
+                        height: 24,
+                      ), // Giữ chỗ để layout ổn định
                   ],
                 ),
               ),
@@ -271,7 +329,9 @@ class _ReportScreenState extends State<ReportScreen> {
                 controller: _reportContentController,
                 maxLines: 8,
                 minLines: 5,
-                enabled: !_isLoading && !_isSuccess,
+                enabled:
+                    !_isSubmitting &&
+                    !_isSuccess, // Disable khi đang gửi hoặc đã thành công
                 decoration: InputDecoration(
                   hintText: 'Nhập chi tiết báo cáo của bạn...',
                   filled: true,
@@ -298,7 +358,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.send, color: Colors.white),
                   label: Text(
-                    _isLoading
+                    _isSubmitting // <<< THAY ĐỔI TEXT NÚT DỰA TRÊN _isSubmitting và _isSuccess >>>
                         ? 'Đang gửi...'
                         : (_isSuccess ? 'Đã gửi' : 'Gửi báo cáo'),
                     style: const TextStyle(
@@ -307,7 +367,8 @@ class _ReportScreenState extends State<ReportScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  onPressed: (_isLoading || _isSuccess) ? null : _sendReport,
+                  // Disable nút khi đang gửi hoặc đã gửi thành công (để chờ điều hướng)
+                  onPressed: (_isSubmitting || _isSuccess) ? null : _sendReport,
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
                         _isSuccess ? Colors.green : Colors.blueAccent[400],
@@ -319,7 +380,10 @@ class _ReportScreenState extends State<ReportScreen> {
                       borderRadius: BorderRadius.circular(25),
                     ),
                     elevation: 5,
-                    disabledBackgroundColor: Colors.grey[400],
+                    disabledBackgroundColor:
+                        _isSuccess
+                            ? Colors.green.withOpacity(0.7)
+                            : Colors.grey[400],
                   ),
                 ),
               ),
