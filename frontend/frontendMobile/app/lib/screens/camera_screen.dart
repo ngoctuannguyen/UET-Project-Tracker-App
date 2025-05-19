@@ -1,5 +1,7 @@
 // filepath: d:\UET-Project-Tracker-App\frontend\frontendMobile\app\lib\screens\camera_screen.dart
 import 'dart:io';
+import 'dart:typed_data'; // <<< THÊM: Import Uint8List
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +12,8 @@ import 'package:app/screens/image_search_result_screen.dart';
 import 'package:app/screens/chatbot_screen.dart';
 import 'package:app/screens/settings_screen.dart';
 import 'package:app/models/user_model.dart'; // <<< THÊM: Import UserModel
+import 'package:image/image.dart' as img; // Import thư viện image
+import 'package:app/screens/manual_barcode_screen.dart'; // <<< THÊM: Import màn hình mới
 
 class CameraScreen extends StatefulWidget {
   // <<< THÊM: Nhận currentUser (có thể null nếu không bắt buộc) >>>
@@ -26,7 +30,8 @@ class _CameraScreenState extends State<CameraScreen> {
   List<CameraDescription>? _cameras;
   CameraDescription? _frontCamera;
   CameraDescription? _backCamera;
-  bool _isUsingFrontCamera = true;
+  bool _isUsingFrontCamera =
+      true; // Giả sử bạn có biến này để theo dõi camera đang dùng
   Future<void>? _initializeControllerFuture;
   int _selectedIndex = 2;
 
@@ -153,24 +158,109 @@ class _CameraScreenState extends State<CameraScreen> {
       return;
     }
     if (_controller!.value.isTakingPicture) {
+      print('Đang trong quá trình chụp ảnh khác.');
       return;
     }
 
     try {
+      // Đảm bảo controller đã sẵn sàng hoàn toàn
       await _initializeControllerFuture;
+      print("Controller initialized, proceeding to take picture.");
 
       XFile imageFile = await _controller!.takePicture();
-      print('Ảnh đã được chụp: ${imageFile.path}');
+      String originalPath = imageFile.path;
+      String processedPath = originalPath; // Mặc định là đường dẫn gốc
+
+      print("Ảnh gốc được lưu tại: $originalPath");
+      print(
+        "Lens direction của camera hiện tại: ${_controller!.description.lensDirection}",
+      );
+      print("Biến _isUsingFrontCamera: $_isUsingFrontCamera");
+
+      // Điều kiện để lật ảnh: CHỈ LẬT KHI KHÔNG PHẢI WEB VÀ LÀ CAMERA TRƯỚC
+      bool shouldFlip =
+          !kIsWeb &&
+          (_controller!.description.lensDirection ==
+                  CameraLensDirection.front ||
+              _isUsingFrontCamera);
+
+      print("Có nên lật ảnh không? (Dựa trên !kIsWeb): $shouldFlip");
+
+      if (shouldFlip) {
+        // Logic lật bằng thư viện 'image' chỉ chạy cho mobile
+        print("Đang tiến hành lật ảnh (Mobile)...");
+        final File rawImageFile = File(originalPath);
+        if (!await rawImageFile.exists()) {
+          print("Lỗi: File ảnh gốc không tồn tại tại $originalPath");
+          // Xử lý lỗi nếu file không tồn tại, có thể hiển thị thông báo
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Lỗi: Không tìm thấy file ảnh gốc.'),
+              ),
+            );
+          }
+          return; // Không tiếp tục nếu không có file
+        }
+
+        Uint8List imageBytes = await rawImageFile.readAsBytes();
+        img.Image? originalImage = img.decodeImage(imageBytes);
+
+        if (originalImage != null) {
+          print("Ảnh gốc đã được decode thành công.");
+          img.Image flippedImage = img.flipHorizontal(originalImage);
+          print("Ảnh đã được lật trong bộ nhớ.");
+
+          final Directory extDir = await getTemporaryDirectory();
+          final String newPath = join(
+            extDir.path,
+            '${DateTime.now().millisecondsSinceEpoch}_flipped.jpg',
+          );
+
+          // Ghi file đã lật
+          await File(newPath).writeAsBytes(
+            img.encodeJpg(flippedImage, quality: 90),
+          ); // quality có thể điều chỉnh
+          processedPath = newPath;
+          print('Ảnh đã lật và lưu tại: $processedPath');
+
+          // (Tùy chọn) Kiểm tra xem file mới có tồn tại không
+          if (await File(processedPath).exists()) {
+            print("File ảnh đã lật tồn tại trên disk.");
+          } else {
+            print("Lỗi: File ảnh đã lật KHÔNG tồn tại trên disk sau khi ghi.");
+          }
+        } else {
+          print("Lỗi: Không thể decode ảnh gốc. originalImage is null.");
+          // Giữ nguyên processedPath là originalPath nếu không decode được
+        }
+      } else {
+        if (kIsWeb) {
+          print(
+            "Không lật ảnh bằng thư viện 'image' (vì đang chạy trên Web). Sẽ xử lý hiển thị sau nếu cần.",
+          );
+        } else {
+          print(
+            "Không lật ảnh (Mobile - không phải camera trước hoặc điều kiện không thỏa mãn).",
+          );
+        }
+      }
 
       if (mounted) {
+        print("Điều hướng đến ImageSearchResultScreen với ảnh: $processedPath");
         Navigator.push(
           context,
           MaterialPageRoute(
-            // <<< SỬA: Truyền currentUser sang ImageSearchResultScreen nếu cần >>>
             builder:
                 (context) => ImageSearchResultScreen(
-                  imagePath: imageFile.path,
-                  currentUser: widget.currentUser, // Truyền currentUser
+                  imagePath: processedPath, // Vẫn là ảnh gốc nếu là web
+                  currentUser: widget.currentUser,
+                  // Thêm một cờ để báo cho ImageSearchResultScreen biết là ảnh từ camera trước trên web
+                  isFromFrontCameraOnWeb:
+                      kIsWeb &&
+                      (_controller!.description.lensDirection ==
+                              CameraLensDirection.front ||
+                          _isUsingFrontCamera),
                 ),
           ),
         );
@@ -182,8 +272,10 @@ class _CameraScreenState extends State<CameraScreen> {
           SnackBar(content: Text('Lỗi khi chụp ảnh: ${e.description}')),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // Thêm stackTrace để debug dễ hơn
       print("Lỗi không xác định khi chụp ảnh: $e");
+      print("Stack trace: $stackTrace");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi không xác định khi chụp ảnh: $e')),
@@ -284,8 +376,25 @@ class _CameraScreenState extends State<CameraScreen> {
       appBar: AppBar(
         title: const Text('Chụp ảnh báo cáo'),
         backgroundColor: Colors.blueAccent,
-        automaticallyImplyLeading: false, // Ẩn nút back mặc định
+        automaticallyImplyLeading: false,
         actions: [
+          // <<< THÊM: Nút để nhập barcode thủ công >>>
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) =>
+                          ManualBarcodeScreen(currentUser: widget.currentUser),
+                ),
+              );
+            },
+            child: const Text(
+              'Hoặc nhập mã',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
           if (canSwitchCamera)
             IconButton(
               icon: Icon(

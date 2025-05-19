@@ -1,22 +1,26 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb; // <<< THÊM IMPORT NÀY
+import 'dart:convert'; // For jsonDecode
+import 'dart:typed_data'; // For Uint8List
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart'; // For MediaType
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
 import 'package:app/screens/camera_screen.dart';
 import 'package:app/screens/report_screen.dart';
-import 'package:app/screens/chatbot_screen.dart';
-import 'package:app/screens/settings_screen.dart';
 import 'package:app/models/user_model.dart';
 
 class ImageSearchResultScreen extends StatefulWidget {
   final String imagePath;
   final UserModel? currentUser;
+  final bool isFromFrontCameraOnWeb;
 
   const ImageSearchResultScreen({
     Key? key,
     required this.imagePath,
     this.currentUser,
+    this.isFromFrontCameraOnWeb = false,
   }) : super(key: key);
 
   @override
@@ -25,415 +29,272 @@ class ImageSearchResultScreen extends StatefulWidget {
 }
 
 class _ImageSearchResultScreenState extends State<ImageSearchResultScreen> {
-  int _selectedIndex = 2; // Index của Camera
-  String _searchResult = '(Chưa có kết quả)';
-  bool _isSearching = false;
+  String _searchResult = "Đang quét barcode và tìm thông tin...";
+  bool _isSearching = true;
+  Map<String, dynamic>? _componentDetails; // Lưu trữ chi tiết component
+  String? _scannedBarcode; // Lưu trữ barcode quét được
+
+  // URL của backend
+  static final String _apiBaseUrl =
+      kIsWeb ? 'http://localhost:3004' : 'http://10.0.2.2:3004';
 
   @override
   void initState() {
     super.initState();
     print(
-      'ImageSearchResultScreen initState: currentUser is ${widget.currentUser?.fullName}',
+      "ImageSearchResultScreen initState: currentUser is ${widget.currentUser?.fullName}",
     );
-    _performImageSearch();
+    print("Image path: ${widget.imagePath}");
+    print("Is from front camera on web: ${widget.isFromFrontCameraOnWeb}");
+    _fetchBarcodeAndDetails(); // <<< THAY ĐỔI: Gọi hàm mới
   }
 
-  Future<void> _performImageSearch() async {
+  // <<< THAY ĐỔI: Tên hàm và logic để gọi API /api/scan-details >>>
+  Future<void> _fetchBarcodeAndDetails() async {
     if (!mounted) return;
     setState(() {
       _isSearching = true;
-      _searchResult = 'Đang tìm kiếm...';
+      _searchResult = "Đang quét barcode và tìm thông tin...";
+      _componentDetails = null;
+      _scannedBarcode = null;
     });
 
     try {
-      await Future.delayed(const Duration(seconds: 2));
-      final result = "Tìm thấy đối tượng X tại vị trí Y";
-      if (mounted) {
-        setState(() {
-          _searchResult = result;
-          _isSearching = false;
-        });
-      }
-    } catch (e) {
-      print("Lỗi khi tìm kiếm ảnh: $e");
-      if (mounted) {
-        setState(() {
-          _searchResult = 'Lỗi khi tìm kiếm: $e';
-          _isSearching = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khi tìm kiếm ảnh: $e'),
-            backgroundColor: Colors.red,
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse(
+          '$_apiBaseUrl/api/scan-details',
+        ), // <<< THAY ĐỔI: Endpoint mới
+      );
+
+      if (kIsWeb) {
+        var imageDataResponse = await http.get(Uri.parse(widget.imagePath));
+        if (imageDataResponse.statusCode == 200) {
+          Uint8List imageData = imageDataResponse.bodyBytes;
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'image',
+              imageData,
+              filename: 'upload_scan.jpg',
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+        } else {
+          throw Exception(
+            'Lỗi tải ảnh từ blob URL (web): ${imageDataResponse.statusCode}',
+          );
+        }
+      } else {
+        File imageFile = File(widget.imagePath);
+        if (!await imageFile.exists()) {
+          throw Exception(
+            'File ảnh không tồn tại (mobile): ${widget.imagePath}',
+          );
+        }
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'image',
+            widget.imagePath,
+            contentType: MediaType('image', 'jpeg'),
           ),
         );
+      }
+      print('--- Gọi API /api/scan-details ---');
+      print('URL: ${request.url}');
+      print('File path/url: ${widget.imagePath}');
+      print('---------------------------------');
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('Scan Details API Response Status: ${response.statusCode}');
+      print('Scan Details API Response Body: ${response.body}');
+
+      if (!mounted) return;
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && responseData['success'] == true) {
+        _scannedBarcode = responseData['barcode']; // Lưu barcode quét được
+        if (responseData['componentDetails'] != null) {
+          _componentDetails = Map<String, dynamic>.from(
+            responseData['componentDetails'],
+          ); // Lưu chi tiết component
+          setState(() {
+            _searchResult =
+                "Barcode: ${_componentDetails!['componentCode']}\n"
+                "Mã sản phẩm: ${_componentDetails!['productCode']}\n"
+                "Tên sản phẩm: ${_componentDetails!['productName']}\n"
+                "Tên thành phần: ${_componentDetails!['componentName']}";
+          });
+        } else if (_scannedBarcode != null) {
+          // Trường hợp quét được barcode nhưng không có chi tiết
+          setState(() {
+            _searchResult =
+                "Đã quét được Barcode: $_scannedBarcode\nTuy nhiên, không tìm thấy thông tin chi tiết cho thành phần này.";
+          });
+        } else {
+          // Trường hợp không quét được barcode
+          setState(() {
+            _searchResult =
+                responseData['message'] ??
+                "Không tìm thấy barcode hoặc thông tin chi tiết.";
+          });
+        }
+      } else {
+        // Lỗi từ server hoặc API trả về success: false
+        setState(() {
+          _searchResult =
+              responseData['message'] ??
+              "Lỗi từ server hoặc không tìm thấy thông tin.";
+          _scannedBarcode =
+              responseData['barcode']; // Vẫn có thể có barcode nếu server trả về
+        });
+      }
+    } catch (error) {
+      print("Lỗi khi gọi API /api/scan-details: $error");
+      if (mounted) {
+        setState(() {
+          _searchResult =
+              "Lỗi khi quét ảnh: ${error.toString().substring(0, (error.toString().length > 100) ? 100 : error.toString().length)}...";
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+        });
       }
     }
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  void _onItemTapped(int index) {
-    if (_selectedIndex == index) return;
-
-    if (widget.currentUser == null && index != 2) {
-      print(
-        "Lỗi: currentUser là null, không thể điều hướng đến màn hình khác ngoài Camera.",
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lỗi thông tin người dùng, không thể chuyển màn hình.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
+  Widget _buildImageWidget() {
+    Widget imageWidget;
+    if (kIsWeb) {
+      // Đối với web, imagePath có thể là blob URL
+      imageWidget = Image.network(widget.imagePath, fit: BoxFit.contain);
+    } else {
+      // Đối với mobile, imagePath là đường dẫn file cục bộ
+      imageWidget = Image.file(File(widget.imagePath), fit: BoxFit.contain);
     }
 
-    switch (index) {
-      case 0:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomeScreen(currentUser: widget.currentUser!),
-            settings: const RouteSettings(name: '/home'),
-          ),
-        );
-        break;
-      case 1:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) =>
-                    FriendsListScreen(currentUser: widget.currentUser!),
-            settings: const RouteSettings(name: '/friends'),
-          ),
-        );
-        break;
-      case 2:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CameraScreen(currentUser: widget.currentUser),
-            settings: const RouteSettings(name: '/camera'),
-          ),
-        );
-        break;
-      case 3:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) => ChatbotScreen(currentUser: widget.currentUser!),
-            settings: const RouteSettings(name: '/chatbot'),
-          ),
-        );
-        break;
-      case 4:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) => SettingsScreen(currentUser: widget.currentUser!),
-            settings: const RouteSettings(name: '/settings'),
-          ),
-        );
-        break;
+    // Áp dụng lật ảnh nếu là web và từ camera trước
+    if (kIsWeb && widget.isFromFrontCameraOnWeb) {
+      print("Áp dụng Transform.scale(scaleX: -1) cho ảnh trên web.");
+      return Transform.scale(
+        scaleX: -1, // Lật theo chiều ngang
+        child: imageWidget,
+      );
     }
+    return imageWidget;
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = widget.currentUser;
-    final userDisplayName = user?.fullName ?? 'Người dùng';
-    final userInitial =
-        userDisplayName.isNotEmpty ? userDisplayName[0].toUpperCase() : '?';
-
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 30),
-          onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder:
-                    (context) => CameraScreen(currentUser: widget.currentUser),
-                settings: const RouteSettings(name: '/camera'),
-              ),
-            );
-          },
-        ),
-        title: const Text(
-          'Kết quả',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-          ), // Đổi màu chữ tiêu đề cho dễ nhìn
-        ),
-        centerTitle: true,
-        automaticallyImplyLeading: false,
+        title: const Text('Kết quả Quét Ảnh'),
+        backgroundColor: Colors.blueAccent,
       ),
-      extendBodyBehindAppBar: true,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.tealAccent[100] ?? Colors.greenAccent,
-              Colors.blue[300] ?? Colors.blue,
-              Colors.purple[200] ?? Colors.purpleAccent,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const SizedBox(height: kToolbarHeight - 20),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: Colors.grey[300],
-                      child: Text(
-                        userInitial,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            if (widget.currentUser != null)
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        child: Text(
+                          widget.currentUser!.fullName[0].toUpperCase(),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        widget.currentUser!.fullName,
                         style: const TextStyle(
-                          fontSize: 24,
-                          color: Colors.black54,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Container(
-                        height: 50,
-                        padding: const EdgeInsets.symmetric(horizontal: 15),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.black54, width: 0.5),
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            userDisplayName,
-                            style: const TextStyle(
-                              color: Colors.black87,
-                              fontSize: 16,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 25),
-                const Text(
-                  'Ảnh đã chụp',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                Container(
-                  height: 200,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blueGrey, width: 2),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10.0),
-                    // <<< THAY ĐỔI LOGIC HIỂN THỊ ẢNH TẠI ĐÂY >>>
-                    child:
-                        kIsWeb
-                            ? Image.network(
-                              // Sử dụng Image.network cho Web
-                              widget.imagePath,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                print("Lỗi tải ảnh từ network (web): $error");
-                                return const Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.error_outline,
-                                        color: Colors.redAccent,
-                                        size: 40,
-                                      ),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'Lỗi tải ảnh (Web)',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            )
-                            : Image.file(
-                              // Sử dụng Image.file cho Mobile
-                              File(widget.imagePath),
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                print("Lỗi tải ảnh từ file (mobile): $error");
-                                return const Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.error_outline,
-                                        color: Colors.redAccent,
-                                        size: 40,
-                                      ),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'Lỗi tải ảnh (Mobile)',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                  ),
-                ),
-                const SizedBox(height: 25),
-                const Text(
-                  'Kết quả tìm kiếm',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(15.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child:
-                          _isSearching
-                              ? const CircularProgressIndicator()
-                              : Text(
-                                _searchResult,
-                                style: TextStyle(
-                                  color:
-                                      _searchResult.startsWith('Lỗi')
-                                          ? Colors.red
-                                          : Colors.black87,
-                                  fontSize: 16,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Center(
-                  child: ElevatedButton(
-                    child: const Text(
-                      'Báo cáo',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => ReportScreen(
-                                imagePath: widget.imagePath,
-                                // currentUser: widget.currentUser, // TODO: Cân nhắc truyền currentUser nếu ReportScreen cần
-                              ),
-                          settings: const RouteSettings(name: '/report'),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 15,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      elevation: 5,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
+              ),
+            const SizedBox(height: 20),
+            const Text(
+              'Ảnh đã chụp:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-          ),
+            const SizedBox(height: 10),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 300),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(7.0),
+                child: _buildImageWidget(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Kết quả tìm kiếm:', // <<< THAY ĐỔI: Tiêu đề chung hơn
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            _isSearching
+                ? const Center(child: CircularProgressIndicator())
+                : Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      _searchResult.isNotEmpty
+                          ? _searchResult
+                          : "Không có thông tin.",
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ),
+            const SizedBox(height: 30),
+          ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Trang chủ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.group_outlined),
-            activeIcon: Icon(Icons.group),
-            label: 'Nhóm',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.camera_alt_outlined),
-            activeIcon: Icon(Icons.camera_alt),
-            label: 'Camera',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.smart_toy_outlined),
-            activeIcon: Icon(Icons.smart_toy),
-            label: 'Chatbot',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: 'Cài đặt',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blueAccent[700],
-        unselectedItemColor: Colors.grey[600],
-        backgroundColor: Colors.white,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        elevation: 8.0,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed:
+            (_isSearching ||
+                    widget.currentUser == null ||
+                    _scannedBarcode ==
+                        null || // <<< THÊM: Chỉ cho phép viết báo cáo nếu có barcode
+                    _scannedBarcode!.isEmpty)
+                ? null
+                : () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) => ReportScreen(
+                            imagePath: widget.imagePath,
+                            currentUser: widget.currentUser,
+                            scannedComponentCode:
+                                _scannedBarcode, // <<< THAY ĐỔI: Truyền barcode đã quét được
+                          ),
+                      settings: const RouteSettings(name: '/report'),
+                    ),
+                  );
+                },
+        icon: const Icon(Icons.report_problem_outlined),
+        label: const Text('Viết Báo Cáo'),
+        backgroundColor:
+            (_scannedBarcode != null && _scannedBarcode!.isNotEmpty)
+                ? Colors.redAccent
+                : Colors.grey, // Thay đổi màu nếu không có barcode
       ),
     );
   }
