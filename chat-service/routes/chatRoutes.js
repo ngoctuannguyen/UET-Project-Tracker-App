@@ -25,6 +25,12 @@ router.put(
   chatController.addGroupMemberInternal
 ); // validateGroup có thể không cần ở đây hoặc cần middleware riêng
 
+
+router.put(
+  "/internal/groups/:groupId/members",
+  chatController.addGroupMemberInternal
+); // validateGroup có thể không cần ở đây hoặc cần middleware riêng
+
 router.get("/groups/:groupId", authMiddleware, chatController.getGroupById);
 // Đảm bảo :userId trong route này được so sánh với req.user.uid trong controller để bảo mật
 router.get(
