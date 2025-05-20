@@ -1,6 +1,8 @@
 const amqp = require('amqplib');
 const axios = require('axios');
 const retry = require('async-retry');
+const axios = require('axios');
+const retry = require('async-retry');
 
 class RabbitMQService {
     constructor() {
@@ -27,7 +29,26 @@ class RabbitMQService {
             console.warn('RabbitMQ connection closed. Reconnecting...');
             this.connection = null;
             this.channel = null;
+        if (this.connection && this.channel) return;
+
+        this.connection = await amqp.connect(this.connectionUrl);
+        this.channel = await this.connection.createChannel();
+        await this.channel.assertExchange(this.exchange, 'topic', { durable: true });
+
+        this.connection.on('error', (err) => {
+            console.error('RabbitMQ connection error:', err);
+            this.connection = null;
+            this.channel = null;
+        });
+
+        this.connection.on('close', () => {
+            console.warn('RabbitMQ connection closed. Reconnecting...');
+            this.connection = null;
+            this.channel = null;
             setTimeout(() => this.connect(), 5000);
+        });
+
+        console.log('Connected to RabbitMQ');
         });
 
         console.log('Connected to RabbitMQ');
