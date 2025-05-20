@@ -8,6 +8,7 @@ from rag_bot.retrieval.retrieval import HybridSearch
 from rag_bot.model.embedding import Embedding
 from rag_bot.model.reranker import ReRanker
 from rag_bot.utils.llm import GeminiLLM
+from rag_bot.context_compressor.context_compressor import ContextualCompressor
 from dotenv import load_dotenv
 import os
 from rag_bot.utils.prompt import SYSTEM_PROMPT
@@ -118,11 +119,13 @@ qdrant_store = QdrantVectorStore("my_collection", embedding_model, sparse_model)
     # qdrant_store.add_documents(documents)
 qdrant_client = qdrant_store.get_client()
 reranker = ReRanker().get_reranker()
+context_compressor = ContextualCompressor()
 hybrid_search = HybridSearch(
         qdrant_client=qdrant_client,
         embedding_model=embedding_model,
         sparse_embedding_model=sparse_model,
-        reranker=reranker
+        reranker=reranker,
+        context_compressor=context_compressor
     )
    
 load_dotenv()

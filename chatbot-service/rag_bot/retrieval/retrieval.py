@@ -9,13 +9,14 @@ from qdrant_client import models
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain.schema.retriever import BaseRetriever
+from rag_bot.context_compressor.context_compressor import ContextualCompressor
     
 class HybridSearch():
     """
     Class for performing hybrid search using dense and sparse embeddings.
     """
 
-    def __init__(self, qdrant_client, embedding_model, sparse_embedding_model, reranker) -> None:
+    def __init__(self, qdrant_client, embedding_model, sparse_embedding_model, reranker, context_compressor) -> None:
         """
         Initialize the HybridSearch object with dense and sparse embedding models and a Qdrant client.
         """
@@ -23,6 +24,7 @@ class HybridSearch():
         self.embedding_model = embedding_model  # Initialize embedding_model
         self.sparse_embedding_model = sparse_embedding_model  # Initialize sparse_embedding_model
         self.reranker = reranker  # Initialize reranker
+        self.context_compressor = context_compressor
 
     def metadata_filter(self, file_names: Union[str, List[str]]) -> models.Filter:
         
@@ -99,8 +101,14 @@ class HybridSearch():
         initial_docs = self.query_hybrid_search(query)
         if initial_docs is None or len(initial_docs) == 0:
             return []
-        else :
-            return self._get_relevant_documents(query, initial_docs)
+
+        top_docs = self._get_relevant_documents(query, initial_docs)
+
+        if self.context_compressor:
+            compressed_docs = self.context_compressor.compress(query, top_docs)
+            return compressed_docs
+        else:
+            return top_docs
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -108,7 +116,8 @@ if __name__ == "__main__":
     sparse_embedding_model = Embedding().get_sparse_embeddings()
     qdrant_client = QdrantVectorStore("my_collection", embedding_model, sparse_embedding_model).get_client()
     reranker = ReRanker().get_reranker()
-    hybrid = HybridSearch(qdrant_client, embedding_model, sparse_embedding_model, reranker)
+    context_compressor = ContextualCompressor()
+    hybrid = HybridSearch(qdrant_client, embedding_model, sparse_embedding_model, reranker, context_compressor)
     initial_docs = hybrid.query_hybrid_search("What is a MAC address?")
     if initial_docs is None or len(initial_docs) == 0:
         print("No documents found.")
