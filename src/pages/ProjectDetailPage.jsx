@@ -34,13 +34,13 @@ const ProjectDetailPage = () => {
   console.log("Location", project);
 
   if (!project) {
-    return <div className="text-center text-red-500 text-3xl font-semibold">Project not found</div>;
+    return <div className="text-center text-black-500 text-3xl font-semibold">Đang tải</div>;
   }
 
   // List sidebar menu
   const menuItems = [
     { path: `/project/${id}`, label: "Project Progress" },
-    { path: `/project/${id}/project-analysis`, label: "Project Analysis" },
+    // { path: `/project/${id}/project-analysis`, label: "Project Analysis" },
     { path: `/project/${id}/people-on-this-project`, label: "People on this project" },
     { path: `/project/${id}/project-description`, label: "Project Description" },
   ];

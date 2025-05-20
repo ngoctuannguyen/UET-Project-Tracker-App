@@ -5,6 +5,7 @@ import axios from "axios";
 import TaskCreateOverlay from "@/components/TaskCreateOverlay";
 import TaskEditOverlay from "@/components/TaskEditOverlay";
 import { toast } from "sonner";
+import { Eye } from "lucide-react";
 
 const ProjectProgress = () => {
   const { id } = useParams();
@@ -13,19 +14,17 @@ const ProjectProgress = () => {
   const [filter, setFilter] = useState("not done");
   const [createVisible, setCreateVisible] = useState(false);
   const [visibleCount, setVisibleCount] = useState(5);
-  const [editTask, setEditTask] = useState([]);
-  const [editStatus, setEditStatus] = useState(false); // State cho task đang chỉnh sửa
+  const [editTask, setEditTask] = useState(null);
+  const [editStatus, setEditStatus] = useState(false);
+  const [viewTask, setViewTask] = useState(null); // State cho overlay xem task
 
   if (!project) {
     return <div className="p-6 text-red-500">Project not found</div>;
   }
 
   const totalTasks = project.project_task.length;
-
   const completedTasks = project.project_task.filter((t) => t.status === "done").length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-  // console.log("Project Progress", progress, completedTasks, totalTasks);
 
   const projectDue = new Date(
     project.project_due._seconds * 1000 + project.project_due._nanoseconds / 1e6
@@ -44,7 +43,7 @@ const ProjectProgress = () => {
 
   const handleSeeMore = () => {
     setVisibleCount((prev) => Math.min(prev + 5, filteredTasks.length));
-  }
+  };
 
   return (
     <div className="p-6 flex flex-col h-full">
@@ -104,15 +103,15 @@ const ProjectProgress = () => {
             className="bg-white p-4 rounded-lg shadow flex justify-between items-center group hover:shadow-md transition-shadow"
           >
             <div className="flex-1">
-            <h3 className="font-semibold mb-1">{task.work_description}</h3>
-            <p
-              className={`text-sm ${
-                task.employee_id ? "text-gray-500" : "text-red-500"
-              }`}
-            >
-              Assign to: {task.employee_id || "No employee assigned"}
-            </p>
-          </div>
+              <h3 className="font-semibold mb-1">{task.work_description}</h3>
+              <p
+                className={`text-sm ${
+                  task.employee_id ? "text-gray-500" : "text-red-500"
+                }`}
+              >
+                Assign to: {task.employee_id || "No employee assigned"}
+              </p>
+            </div>
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end">
                 <p className="text-gray-400 text-sm">
@@ -128,8 +127,16 @@ const ProjectProgress = () => {
                   {task.status === "done" ? "Done" : "Not Done"}
                 </span>
               </div>
+              {/* Nút xem chi tiết */}
               <button
-                onClick={() => {setEditTask(task), setEditStatus(true)}}
+                onClick={() => setViewTask(task)}
+                className="text-gray-400 hover:text-blue-600 transition"
+                title="Xem chi tiết task"
+              >
+                <Eye className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => { setEditTask(task); setEditStatus(true); }}
                 className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity"
                 title="Edit task"
               >
@@ -159,22 +166,61 @@ const ProjectProgress = () => {
         )}
       </div>
 
+      {/* Overlay xem chi tiết task */}
+      {viewTask && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          {/* Lớp phủ làm mờ nền */}
+          <div className="absolute inset-0 backdrop-blur-sm bg-black/10"></div>
+          <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md relative z-10">
+            <button
+              className="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-xl"
+              onClick={() => setViewTask(null)}
+              title="Close"
+            >
+              &times;
+            </button>
+            <h2 className="text-xl font-bold mb-4 text-blue-700">Report Details</h2>
+            <div className="mb-3">
+              <span className="font-semibold">Report Content:</span>
+              <div className="mt-1 text-gray-700">{viewTask.report_content || "No Report"}</div>
+            </div>
+            <div className="mb-3">
+              <span className="font-semibold">Report Date:</span>
+              <div className="mt-1 text-gray-700">
+                {viewTask.report_date
+                  ? new Date(viewTask.report_date._seconds * 1000).toLocaleDateString()
+                  : "No Report"}
+              </div>
+            </div>
+            <div className="mb-3">
+              <span className="font-semibold">Due date:</span>
+              <div className="mt-1 text-gray-700">
+                {viewTask.deadline
+                  ? new Date(viewTask.deadline._seconds * 1000).toLocaleDateString()
+                  : "No Report"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Task Overlay */}
       {editStatus && (
         <TaskEditOverlay
           task={editTask}
           projectId={project.project_id}
           onClose={() => setEditStatus(false)}
-          fetchProject={fetchProject} // Pass fetchProject to refresh data
+          fetchProject={fetchProject}
         />
       )}
 
       {/* Create Task Overlay */}
       {createVisible && (
-      <TaskCreateOverlay
-        onClose={() => setCreateVisible(false)}
-        projectId={project.project_id}
-      />)}
+        <TaskCreateOverlay
+          onClose={() => setCreateVisible(false)}
+          projectId={project.project_id}
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { useAuth } from "../context/AuthContext";
 import io from "socket.io-client";
 import GroupChatInfo from "../components/GroupChatInfo";
 
@@ -19,39 +20,63 @@ const ChatGroupPage = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [showMembers, setShowMembers] = useState(false);
-  const [showAddMember, setShowAddMember] = useState(false);
-  const [newMember, setNewMember] = useState("");
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const { auth } = useAuth();
 
-
-  // 1. Lấy thông tin người dùng và token từ localStorage (giữ nguyên)
+  // 1. Lấy thông tin người dùng và token từ localStorage (thông qua AuthContext)
   useEffect(() => {
     try {
-      const storedAuthData = localStorage.getItem('authData');
-      console.log("ChatGroupPage - Stored Auth Data from localStorage:", storedAuthData);
-      if (storedAuthData) {
-        const parsedAuthData = JSON.parse(storedAuthData);
-        console.log("ChatGroupPage - Parsed Auth Data:", parsedAuthData);
-        if (parsedAuthData.token && parsedAuthData.user && parsedAuthData.user.uid && parsedAuthData.user.displayName) {
-          setCurrentUser(parsedAuthData.user);
-          setIdToken(parsedAuthData.token);
-          console.log("ChatGroupPage - Set currentUser:", parsedAuthData.user);
-          console.log("ChatGroupPage - Set idToken:", parsedAuthData.token);
+      const authDataFromContext = auth.userData; // userData này giờ đã có trường 'uid' là Firebase UID
+      const currentIdToken = auth.idToken;
+
+      console.log("ChatGroupPage - Auth data from context:", authDataFromContext);
+      console.log("ChatGroupPage - ID token from context:", currentIdToken);
+
+      if (authDataFromContext && currentIdToken) {
+        // authDataFromContext.uid giờ đây là Firebase User UID
+        // authDataFromContext.full_name là tên đầy đủ
+        if (
+          authDataFromContext.uid && 
+          typeof authDataFromContext.full_name !== 'undefined'
+        ) {
+          // Tạo currentUser với cấu trúc nhất quán cho ChatPage
+          const chatCurrentUser = {
+            ...authDataFromContext, // Giữ lại các trường khác từ userData
+            displayName: authDataFromContext.full_name, // Sử dụng full_name làm displayName
+            // uid đã có sẵn và là Firebase UID
+          };
+          setCurrentUser(chatCurrentUser);
+          setIdToken(currentIdToken);
+          console.log("ChatGroupPage - Successfully set currentUser (using Firebase UID and full_name):", chatCurrentUser);
+          console.log("ChatGroupPage - Successfully set idToken:", currentIdToken);
         } else {
-          console.warn("ChatGroupPage - Auth data in localStorage is incomplete. User might need to login.");
+          console.warn(
+            "ChatGroupPage - Auth data from context is missing 'uid' (Firebase UID) or 'full_name'. User might need to login.",
+            {
+              hasUid: !!authDataFromContext.uid,
+              hasFullName: typeof authDataFromContext.full_name !== 'undefined',
+              isIdTokenPresent: !!currentIdToken,
+              retrievedAuthData: authDataFromContext,
+            }
+          );
         }
       } else {
-        console.warn("ChatGroupPage - No auth data found in localStorage. User might need to login.");
+        console.warn(
+          "ChatGroupPage - No auth data (authDataFromContext or idToken) found in context. User might need to login."
+        );
       }
     } catch (error) {
-      console.error("ChatGroupPage - Error parsing auth data from localStorage:", error);
+      console.error(
+        "ChatGroupPage - Error processing auth data from context:",
+        error
+      );
     }
     setAuthChecked(true);
-  }, []);
+  }, [auth.userData, auth.idToken]); // Chạy lại khi auth context thay đổi
 
   // 2. Kết nối Socket.IO và xử lý sự kiện
   useEffect(() => {
@@ -234,7 +259,7 @@ const ChatGroupPage = () => {
     setSelectedGroupId(groupId);
   };
 
-  // 5. Gửi tin nhắn (giữ nguyên, nhưng đảm bảo sender_name được gửi)
+  // 5. Gửi tin nhắn
   const handleSend = (e) => {
     e.preventDefault();
     if (!input.trim() || !selectedGroupId || !currentUser ) {
@@ -250,8 +275,8 @@ const ChatGroupPage = () => {
     const messageData = {
       group_id: selectedGroupId,
       text: input.trim(),
-      sender_id: currentUser.uid, // Lấy từ currentUser đã xác thực
-      sender_name: currentUser.displayName || "Người dùng ẩn danh", // Đảm bảo có sender_name
+      sender_id: currentUser.uid, // Đây sẽ là Firebase User UID
+      sender_name: currentUser.displayName || currentUser.full_name || "Người dùng ẩn danh", // Ưu tiên displayName, fallback về full_name
     };
     
     console.log("ChatGroupPage - CLIENT EMIT: Emitting 'send-message' to server:", JSON.stringify(messageData, null, 2));
@@ -259,7 +284,6 @@ const ChatGroupPage = () => {
     setInput("");
   };
 
-  // ... (phần render JSX giữ nguyên, nhưng chú ý key của message) ...
   const filteredGroups = groups.filter((group) =>
     (group.group_name || group.name || '').toLowerCase().includes(search.toLowerCase())
   );
@@ -315,46 +339,70 @@ const ChatGroupPage = () => {
         )}
       </div>
 
-       {showMembers && (
-            <div className="absolute inset-0 flex items-center justify-end pr-12 z-20">
-              <GroupChatInfo
-                members={currentGroup.members}
-                onClose={() => setShowMembers(false)}
-              />
-            </div>
-        )}
+      {/* Main chat area - 'relative' để modal được định vị bên trong */}
+      <div className="flex-1 flex flex-col bg-gray-100 p-6 relative">
+        {/* Header: Group Name and View Members Button */}
+        <div className="flex justify-between items-center mb-4">
+          {selectedGroupId && currentGroup ? (
+            <h1 className="text-xl font-semibold text-gray-800 truncate pr-2" title={currentGroup.group_name || currentGroup.name || "Chat Room"}>
+              {currentGroup.group_name || currentGroup.name || "Chat Room"}
+            </h1>
+          ) : (
+            <div className="h-7"></div> 
+          )}
 
-
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col bg-gray-100 p-6">
-        <div className="flex gap-2">
+          {selectedGroupId && currentGroup && (
             <button
-              onClick={() => setShowMembers(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg shadow hover:from-blue-600 hover:to-blue-800 transition font-semibold"
+              onClick={() => setShowMembers(true)} // Mở modal
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg shadow hover:from-blue-600 hover:to-blue-800 transition font-semibold flex-shrink-0"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m9-4a4 4 0 10-8 0 4 4 0 008 0zm6 4v2a4 4 0 01-3 3.87M6 8a4 4 0 118 0 4 4 0 01-8 0z" />
               </svg>
               Xem thành viên
             </button>
+          )}
+        </div>
+        
+        {/* Modal for Group Members */}
+        {showMembers && currentGroup && (
+          <div 
+            // Loại bỏ 'bg-black bg-opacity-30' để không còn lớp phủ đen
+            // Giữ lại 'absolute inset-0 flex items-center justify-end z-20' để định vị
+            className="absolute inset-0 flex items-center justify-end z-20 pointer-events-none" // Thêm pointer-events-none cho div này
+            // Bỏ onClick ở đây nếu không muốn click ngoài modal (trên vùng trong suốt) để đóng
+            // onClick={() => setShowMembers(false)} 
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()} // Ngăn click vào nội dung modal làm đóng modal (nếu có onClick ở trên)
+              className="mr-12 pointer-events-auto" // Thêm pointer-events-auto cho div chứa GroupChatInfo
+            > 
+              <GroupChatInfo
+                members={currentGroup.members}
+                onClose={() => setShowMembers(false)} // Nút "Đóng" trong GroupChatInfo sẽ xử lý việc đóng
+              />
+            </div>
           </div>
+        )}
+
+        {/* Chat messages and input form */}
         {selectedGroupId && currentGroup ? (
           <>
-            <div className="bg-white shadow rounded-t-lg p-4 mb-0.5">
+            {/* <div className="bg-white shadow rounded-t-lg p-4 mb-0.5">
                 <h1 className="text-xl font-semibold text-gray-800">
                 {currentGroup.group_name || currentGroup.name || "Chat Room"}
                 </h1>
-            </div>
+            </div> */} {/* Group name đã được chuyển lên header ở trên */}
 
-            <div className="flex-1 bg-white p-4 shadow rounded-b-lg overflow-y-auto mb-4 custom-scrollbar">
+            <div className="flex-1 bg-white p-4 shadow rounded-lg overflow-y-auto mb-4 custom-scrollbar">
               {loadingMessages ? (
                 <div className="flex h-full items-center justify-center">
                     <p className="text-gray-500">Đang tải tin nhắn...</p>
                 </div>
               ) : messages.length > 0 ? (
-                messages.map((msg) => ( // Sử dụng msg.id làm key
+                messages.map((msg) => (
                   <div
-                    key={msg.id} // QUAN TRỌNG: Sử dụng ID duy nhất của tin nhắn làm key
+                    key={msg.id}
                     className={`mb-3 flex ${
                       msg.sender_id === currentUser.uid ? "justify-end" : "justify-start" 
                     }`}
@@ -370,11 +418,7 @@ const ChatGroupPage = () => {
                             {msg.sender_name || "Unknown User"}
                         </p>
                       )}
-                      <p className="text-sm">{msg.text}</p>
-                      {/* Timestamp (nếu có và muốn hiển thị) */}
-                      {/* <p className={`text-xs mt-1 ${msg.sender_id === currentUser.uid ? 'text-blue-200' : 'text-gray-400'} text-right`}>
-                        {msg.timestamp && msg.timestamp.seconds ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString() : (msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '')}
-                      </p> */}
+                      <p className="text-sm break-words">{msg.text}</p> {/* Thêm break-words */}
                     </div>
                   </div>
                 ))
@@ -384,7 +428,6 @@ const ChatGroupPage = () => {
                 </div>
               )}
               <div ref={messagesEndRef} />
-
             </div>
 
             <form
