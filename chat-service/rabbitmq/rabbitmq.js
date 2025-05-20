@@ -1,8 +1,6 @@
 const amqp = require('amqplib');
 const axios = require('axios');
 const retry = require('async-retry');
-const axios = require('axios');
-const retry = require('async-retry');
 
 class RabbitMQService {
     constructor() {
@@ -39,6 +37,18 @@ class RabbitMQService {
 
         await retry(async (bail) => {
             switch (routingKey) {
+                case 'event.project.created': {
+                    const projectData = event.payload.project;
+                    const groupChatData = {
+                        admin: [projectData.project_leader],
+                        members: projectData.employee_list,
+                        group_name: projectData.project_name,
+                        created_by: projectData.project_leader,
+                        group_id: projectData.project_id
+                    }
+                    await axios.post(`${apiBase}/internal/groups`, groupChatData);
+                    break;
+                }
                 case 'event.project.employee.added': {
                     const { projectId, employeeId } = event.payload;
                     await axios.put(`${apiBase}/internal/groups/${projectId}/members`,
@@ -76,6 +86,8 @@ class RabbitMQService {
 
         const queue = await this.channel.assertQueue('chat-service', { exclusive: false });
         await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.employee.*');
+        await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.admin.*');
+        await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.created');
 
         this.channel.consume(queue.queue, async (msg) => {
             if (!msg) return;

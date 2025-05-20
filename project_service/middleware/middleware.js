@@ -19,63 +19,7 @@ const ProjectMiddleware = {
                 error: `Missing required fields: ${missingFields.join(', ')}`
             });
         }
-    
-        // // Validate employee_list structure
-        // if (req.body.employee_list) {
-        //     if (!Array.isArray(req.body.employee_list)) {
-        //         return res.status(400).json({ error: "Employee list must be an array" });
-        //     }
-        
-        //     if (req.body.employee_list.length === 0) {
-        //         return res.status(400).json({ error: "Employee list cannot be empty" });
-        //     }
-        // }
-      
-        // // Validate project tasks if present
-        // if (req.body.project_task) {
-        //     if (!Array.isArray(req.body.project_task)) {
-        //         return res.status(400).json({ error: 'project_task must be an array' });
-        //     }
-    
-        //     for (const task of req.body.project_task) {
-        //         const taskRequiredFields = ['start_date', 'deadline'];
-        //         const taskMissingFields = taskRequiredFields.filter(field => !task[field]);
-                
-        //         if (taskMissingFields.length > 0) {
-        //             return res.status(400).json({
-        //                 error: `Missing required fields in project_task: ${taskMissingFields.join(', ')}`
-        //             });
-        //         }
-    
-        //         // Validate task dates
-        //         try {
-        //             new Date(task.start_date);
-        //             new Date(task.deadline);
-        //         } catch (error) {
-        //             return res.status(400).json({ error: 'Invalid date format in task' });
-        //         }
-    
-        //         // Validate assigned employee (if specified)
-        //         if (task.employeeId) {
-        //             if (!req.body.employee_list.includes(task.employeeId)) {
-        //                 return res.status(400).json({
-        //                     error: `Task employee ${task.employeeId} not in project team`
-        //                 });
-        //             }
-        //         }
-        //     }
-        // }
-    
-        // // Validate project due date
-        // // try {
-        // //     const dueDate = new Date(req.body.project_due);
-        // //     if (isNaN(dueDate.getTime())) {
-        // //         return res.status(400).json({ error: 'Invalid project due date format' });
-        // //     }
-        // // } catch (error) {
-        // //     return res.status(400).json({ error: 'Invalid project due date format' });
-        // // }
-    
+
         next();
     },
 

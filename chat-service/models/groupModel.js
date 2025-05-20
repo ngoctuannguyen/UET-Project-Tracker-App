@@ -18,21 +18,22 @@ class Group {
   }
 
   static async create(groupData) {
-    const groupId = uuidv4(); // Sử dụng uuidv4 để tạo ID cho document
-    const groupRef = chat_service.doc(groupId);
+
+    console.log(groupData);
 
     const initialMembers = [...(groupData.members || []), groupData.create_by];
     const uniqueMembers = [...new Set(initialMembers.filter((id) => id))];
-    const initialAdmins = [...(groupData.admin || []), groupData.create_by];
+    const initialAdmins = [...(groupData.admin || []), groupData.created_by];
     const uniqueAdmins = [...new Set(initialAdmins.filter((id) => id))];
 
-    await Group.addMessageCollecttion(groupId);
+    const groupRef = chat_service.doc(groupData.group_id);
+    await Group.addMessageCollecttion(groupData.group_id);
 
     const newGroupData = {
-      group_id: groupId, // Lưu ID này trong document để tiện truy vấn nếu cần
+      group_id: groupData.group_id, // Lưu ID này trong document để tiện truy vấn nếu cần
       group_name: groupData.group_name,
       members: uniqueMembers,
-      created_by: groupData.create_by,
+      created_by: groupData.created_by,
       admin: uniqueAdmins,
       created_at: admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -40,7 +41,7 @@ class Group {
     await groupRef.set(newGroupData);
 
     // Trả về cả ID của document và dữ liệu của nó
-    return { id: groupRef.id, ...newGroupData };
+    return newGroupData;
   }
 
   static async updateGroupName(groupId, newName) {
