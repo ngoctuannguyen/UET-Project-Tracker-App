@@ -37,9 +37,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setAuth({ idToken: null, refreshToken: null, userData: null });
-    localStorage.removeItem("idToken", idToken);
-    localStorage.removeItem("refreshToken", refreshToken);
-    localStorage.removeItem("userData", JSON.stringify(userData));
+    localStorage.removeItem("idToken"); // Chỉ cần key
+    localStorage.removeItem("refreshToken"); // Chỉ cần key
+    localStorage.removeItem("userData"); // Chỉ cần key
   };
 
   return (

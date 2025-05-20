@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext"; // Đảm bảo đường dẫn chính xác
+import { jwtDecode } from "jwt-decode"; // Nhập jwt-decode
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ const LoginPage = () => {
     try {
       if (!email.includes("@") || password.length < 4) {
         toast.error("Invalid email or password");
+        setIsLoading(false); // Thêm dòng này để reset loading state
         return;
       }
 
@@ -27,12 +29,40 @@ const LoginPage = () => {
       // Gửi yêu cầu đăng nhập
       const response = await axios.post("/auth/login", { email, password }, { withCredentials: true });
 
-      const { idToken, refreshToken, userData } = response.data;
+      const { idToken, refreshToken, userData: originalUserData } = response.data;
 
-      console.log(idToken, "****", refreshToken, " ", userData);
+      // Giải mã idToken để lấy Firebase User UID
+      let firebaseUserUid = null;
+      if (idToken) {
+        try {
+          const decodedToken = jwtDecode(idToken);
+          firebaseUserUid = decodedToken.user_id; // Firebase UID thường nằm trong claim 'user_id' hoặc 'sub'
+          console.log("LoginPage - Decoded Firebase UID from idToken:", firebaseUserUid);
+        } catch (decodeError) {
+          console.error("LoginPage - Error decoding idToken:", decodeError);
+          toast.error("Login failed: Could not process user identity.");
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      if (!firebaseUserUid) {
+        console.error("LoginPage - Firebase UID could not be extracted from idToken.");
+        toast.error("Login failed: User identity is missing.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Tạo đối tượng userData mới, thêm firebaseUserUid làm trường 'uid'
+      const finalUserData = {
+        ...originalUserData,
+        uid: firebaseUserUid, // Đây sẽ là Firebase User UID
+      };
+
+      console.log("LoginPage - idToken:", idToken, "**** refreshToken:", refreshToken, "finalUserData:", finalUserData);
   
-      // Lưu trạng thái người dùng vào Context
-      login(idToken, refreshToken, userData);
+      // Lưu trạng thái người dùng vào Context với finalUserData đã bao gồm uid
+      login(idToken, refreshToken, finalUserData);
   
       toast.success("Login successful!")  
 
@@ -40,11 +70,13 @@ const LoginPage = () => {
       if (role === "admin") {
         navigate("/admin");
       } else {
-        navigate("/");
+        navigate("/"); // Điều hướng đến trang chủ (nơi có thể có Dashboard)
       }
     } catch (error) {
-      console.log(error);
+      console.log("LoginPage - Login error:", error);
       toast.error(error.response?.data?.error || "Login failed");
+    } finally {
+      setIsLoading(false); // Đảm bảo setIsLoading(false) được gọi
     }
   };
 
