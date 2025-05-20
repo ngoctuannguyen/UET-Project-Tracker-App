@@ -14,6 +14,13 @@ router.post(
   validateGroup,
   chatController.createGroup
 );
+
+router.post(
+  "/internal/groups",
+  validateGroup,
+  chatController.createGroupInternal
+)
+
 router.put(
   "/groups/:groupId/members",
   authMiddleware,

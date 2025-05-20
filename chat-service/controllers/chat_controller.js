@@ -40,6 +40,45 @@ const chatController = {
     }
   },
 
+  createGroupInternal: async (req, res) => {
+    try {
+      const groupName = req.body.group_name;
+      const creatorId = req.body.created_by;
+      let members = req.body.members || [];
+      let groupAdmins = req.body.admin || []; // Trường admin trong group document
+
+      if (!groupName || groupName.trim() === "") {
+        return res.status(400).json({ error: "Group name is required." });
+      }
+
+      // Đảm bảo người tạo luôn là thành viên
+      if (!members.includes(creatorId)) {
+        members.push(creatorId);
+      }
+      // Người tạo có thể mặc định là admin của nhóm (tùy logic của bạn)
+      if (!groupAdmins.includes(creatorId)) {
+        groupAdmins.push(creatorId);
+      }
+
+      const groupData = {
+        group_name: groupName,
+        members: [...new Set(members)], // Loại bỏ trùng lặp
+        admin: [...new Set(groupAdmins)], // Loại bỏ trùng lặp
+        created_by: creatorId,
+        created_at: new Date(),
+        group_id: req.body.group_id
+      };
+
+      const group = await Group.create(groupData);
+      res.status(201).json(group);
+    } catch (error) {
+      console.error("Error creating group:", error);
+      res
+        .status(500)
+        .json({ error: "Failed to create group: " + error.message });
+    }
+  },
+
   addGroupMember: async (req, res) => {
     try {
       const groupId = req.params.groupId;
