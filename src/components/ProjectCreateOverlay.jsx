@@ -49,7 +49,7 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
     try {
       await axios.post('/api/projects', {
         ...formData,
-        project_due: new Date(formData.project_due).toISOString() // Convert to ISO format
+        project_due: new Date(formData.project_due).toLocaleDateString() // Convert to ISO format
       });
       setStatus('success');
       setTimeout(onClose, 1500);

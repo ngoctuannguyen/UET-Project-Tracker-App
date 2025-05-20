@@ -29,6 +29,7 @@ const Sidebar = () => {
             <p onClick={() => navigate("/")} className="cursor-pointer hover:underline">Home</p>
             <p onClick={() => navigate("/project-management")} className="cursor-pointer hover:underline">Project management</p>
             <p onClick={() => navigate("/profile")} className="cursor-pointer hover:underline">Profile</p>
+            <p onClick={() => navigate("/notification")} className="cursor-pointer hover:underline">Notification</p>
           </nav>
         </div>
       </div>

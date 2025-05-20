@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-import { Trash, Plus, User, Crown, Briefcase } from "lucide-react";
+import { Trash, Plus, User, Crown, Briefcase, Pencil } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const PeopleOnThisProject = () => {
   const { id } = useParams();
@@ -10,24 +11,35 @@ const PeopleOnThisProject = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [newEmployee, setNewEmployee] = useState("");
+  const [editLeader, setEditLeader] = useState(false);
+  const [newLeaderId, setNewLeaderId] = useState("");
+  const [changingLeader, setChangingLeader] = useState(false);
 
   // Lấy danh sách nhân viên từ project context
   const owner = project?.project_leader || "";
   const employees = project?.employee_list?.filter(e => e !== owner) || [];
 
+  const { auth, login } = useAuth();
+
   const handleAdd = async () => {
     const trimmedName = newEmployee.trim();
     if (!trimmedName) return;
 
+    const employee_id = trimmedName;
+
     try {
       setLoading(true);
       setError(null);
-      
-      await axios.post(`/api/projects/${id}/employees/${trimmedName}`);
+
+      const response = await axios.post(`/api/projects/${id}/employees/${employee_id}`, {}, {
+        headers: {
+          Authorization: `Bearer ${auth.idToken}`,
+        }
+      });
 
       toast.success("Employee added successfully!");
 
-      fetchProject();
+      await fetchProject();
       setNewEmployee("");
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to add employee");
@@ -43,11 +55,15 @@ const PeopleOnThisProject = () => {
       setLoading(true);
       setError(null);
 
-      await axios.delete(`/api/projects/${id}/employees/${employeeId}`);
+      const response = await axios.delete(`/api/projects/${id}/employees/${employeeId}`,{
+        headers: {
+          Authorization: `Bearer ${auth.idToken}`,
+        }
+      });
 
       toast.success("Employee removed successfully!");
 
-      fetchProject(); // Refetch data từ server
+      await fetchProject(); // Refetch data từ server
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to remove employee");
     } finally {
@@ -58,6 +74,30 @@ const PeopleOnThisProject = () => {
   if (!project) {
     return <div className="p-6 text-red-500">Project not found</div>;
   }
+
+  const handleChangeLeader = async (newLeader) => {
+    if (!window.confirm(`Chuyển quyền trưởng nhóm cho ${newLeader}?`)) return;
+    try {
+      setChangingLeader(true);
+      setError(null);
+
+      await axios.put(
+        `/api/projects/${id}/leader/${newLeader}`, {},
+        {
+          headers: {
+            Authorization: `Bearer ${auth.idToken}`,
+          },
+        }
+      );
+
+      toast.success("Leader changed successfully!");
+      await fetchProject();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to change leader");
+    } finally {
+      setChangingLeader(false);
+    }
+  };
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -74,6 +114,50 @@ const PeopleOnThisProject = () => {
             <User className="w-5 h-5 text-indigo-600 dark:text-indigo-400 mr-3" />
             <span className="font-medium text-gray-700 dark:text-gray-200">{owner}</span>
             <span className="ml-2 text-sm text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 px-2 py-1 rounded-full">Owner</span>
+            <button
+                className="ml-3 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                onClick={() => setEditLeader(!editLeader)}
+                title="Chỉnh sửa leader"
+                type="button"
+            >
+                  <Pencil className="w-4 h-4 text-gray-500" />
+            </button>
+            {editLeader && (
+            <form
+              className="flex items-center ml-3 gap-2"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newLeaderId.trim()) return;
+                await handleChangeLeader(newLeaderId.trim());
+                setEditLeader(false);
+                setNewLeaderId("");
+              }}
+            >
+              <input
+                type="text"
+                className="px-2 py-1 rounded border text-sm bg-white dark:bg-gray-800"
+                placeholder="New leader ID"
+                value={newLeaderId}
+                onChange={e => setNewLeaderId(e.target.value)}
+                disabled={loading}
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="px-2 py-1 bg-blue-600 text-white rounded text-sm"
+                disabled={loading || !newLeaderId.trim()}
+              >
+                Save Changes
+              </button>
+              <button
+                type="button"
+                className="px-2 py-1 text-gray-500 rounded text-sm"
+                onClick={() => { setEditLeader(false); setNewLeaderId(""); }}
+              >
+                Cancle
+              </button>
+            </form>
+          )}
           </div>
         </div>
 
