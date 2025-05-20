@@ -117,6 +117,44 @@ const chatController = {
     }
   },
 
+  addGroupMemberInternal: async (req, res) => {
+    try {
+      const groupId = req.params.groupId;
+      const memberIdToAdd = req.body.member; // UID của người cần thêm
+
+      if (!memberIdToAdd) {
+        return res.status(400).json({ error: "Member ID to add is required." });
+      }
+
+      const groupDoc = await Group.getById(groupId);
+      if (!groupDoc) {
+        return res.status(404).json({ error: "Group not found." });
+      }
+
+      // Logic kiểm tra quyền: Chỉ admin của nhóm mới được thêm thành viên
+      // if (!groupDoc.admin || !groupDoc.admin.includes(requestingUserUid)) {
+      //   return res
+      //     .status(403)
+      //     .json({ error: "Forbidden: Only group admins can add members." });
+      // }
+
+      // Kiểm tra xem người dùng đã là thành viên chưa
+      if (groupDoc.members && groupDoc.members.includes(memberIdToAdd)) {
+        return res
+          .status(400)
+          .json({ error: "User is already a member of this group." });
+      }
+
+      const updatedGroup = await Group.addMember(groupId, memberIdToAdd);
+      res.json(updatedGroup);
+    } catch (error) {
+      console.error("Error adding group member:", error);
+      res
+        .status(500)
+        .json({ error: "Failed to add group member: " + error.message });
+    }
+  },
+
   getGroupById: async (req, res) => {
     try {
       const groupId = req.params.groupId;
@@ -308,7 +346,7 @@ const chatController = {
         .json({ error: "Failed to remove group admin: " + error.message });
     }
   },
-
+  
   removeGroup: async (req, res) => {
     try {
       const groupId = req.params.groupId;
@@ -444,6 +482,36 @@ const chatController = {
       }
 
       const updatedGroup = await Group.removeMember(groupId, memberIdToRemove);
+      res.json(updatedGroup);
+    } catch (error) {
+      console.error("Error removing group member:", error);
+      res
+        .status(500)
+        .json({ error: "Failed to remove group member: " + error.message });
+    }
+  },
+
+  changeAdmin: async (req, res) => {
+    try {
+      const groupId = req.params.groupId;
+      const adminToChange = req.body.admin; // UID của người cần xóa
+
+      if (!adminToChange) {
+        return res.status(400).json({ error: "Admin ID is required." });
+      }
+
+      const groupDoc = await Group.getById(groupId);
+      if (!groupDoc) {
+        return res.status(404).json({ error: "Group not found." });
+      }
+
+      // if (!groupDoc.members || !groupDoc.members.includes(adminToChange)) {
+      //   return res
+      //     .status(400)
+      //     .json({ error: "User is not a member of this group." });
+      // }
+
+      const updatedGroup = await Group.changeAdmin(groupId, adminToChange);
       res.json(updatedGroup);
     } catch (error) {
       console.error("Error removing group member:", error);

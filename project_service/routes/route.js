@@ -56,4 +56,9 @@ router.put(
   projectController.updateProjectTask
 );
 
+router.put(
+  '/projects/:projectId/',
+  projectController.updateProjectDescription
+);
+
 module.exports = router;

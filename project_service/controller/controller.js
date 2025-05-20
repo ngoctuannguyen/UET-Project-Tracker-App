@@ -89,6 +89,27 @@ const projectController = {
         }
     },
 
+    updateProjectDescription: async (req, res) => {
+        try {
+            const updatedProject = await Project.update_project_description(
+                req.params.projectId,
+                req.body.project_description
+            );
+
+            // await RabbitMQService.publishEvent('event.project.description.updated', 
+            //     createEvent('PROJECT_DESCRIPTION_UPDATED', {
+            //         projectId: req.params.projectId,
+            //         data: updatedProject
+            //     })
+            // );
+
+            res.status(200).json(updatedProject);
+        } 
+        catch (error) {
+            res.status(400).json({ message: error.message });
+        }
+    },
+
     updateProjectLeader: async (req, res) => {
         try {
             const updatedProject = await Project.change_leader(
@@ -99,7 +120,7 @@ const projectController = {
             await RabbitMQService.publishEvent('event.project.leader.updated', 
                 createEvent('PROJECT_LEADER_UPDATED', {
                     projectId: req.params.projectId,
-                    leaderId: req.params.leaderId,
+                    admin: req.params.leaderId,
                     data: updatedProject
                 })
             );
