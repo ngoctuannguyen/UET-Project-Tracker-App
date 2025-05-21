@@ -317,17 +317,25 @@ exports.checkEmailExists = async (req, res) => {
   }
 };
 
-// Lấy thông tin người dùng đang đăng nhập (từ token)
-// exports.getCurrentUser = async (req, res) => {
-//   const uid = req.user.uid; // req.user được gán bởi authMiddleware
+// Lấy thông tin người dùng bất kỳ bằng UID (ví dụ cho admin)
+// exports.getUserByUid = async (req, res) => {
+//   const { uid } = req.params;
+
+//   if (!uid) {
+//     return res.status(400).json({ error: "UID người dùng là bắt buộc." });
+//   }
+//   // Tùy chọn: Kiểm tra quyền admin ở đây nếu cần
+//   // const requesterUid = req.user.uid; // Người dùng đang thực hiện request
+//   // const requesterDoc = await firestoreService.collection("user_service").doc(requesterUid).get();
+//   // if (!requesterDoc.exists || requesterDoc.data().role !== "2") {
+//   //   return res.status(403).json({ error: "Không có quyền truy cập thông tin người dùng này." });
+//   // }
 
 //   try {
 //     const userDocRef = firestoreService.collection("user_service").doc(uid);
 //     const userDoc = await userDocRef.get();
 
 //     if (!userDoc.exists) {
-//       // Có thể người dùng tồn tại trong Firebase Auth nhưng chưa có record trong Firestore
-//       // Hoặc bạn muốn trả về lỗi nếu không có record Firestore
 //       // Thử lấy thông tin từ Firebase Auth nếu không có trong Firestore
 //       const firebaseUser = await admin.auth().getUser(uid);
 //       return res.status(200).json({
@@ -336,15 +344,13 @@ exports.checkEmailExists = async (req, res) => {
 //           email: firebaseUser.email,
 //           displayName: firebaseUser.displayName,
 //           photoURL: firebaseUser.photoURL,
-//           // Bạn có thể thêm các trường khác từ firebaseUser nếu cần
-//           // và báo hiệu rằng thông tin chi tiết từ Firestore không có
 //           firestoreDataMissing: true,
 //         },
 //       });
 //     }
 //     res.status(200).json({ user: userDoc.data() });
 //   } catch (error) {
-//     console.error("Lỗi lấy thông tin người dùng hiện tại:", error);
+//     console.error(`Lỗi lấy thông tin người dùng ${uid}:`, error);
 //     if (error.code === "auth/user-not-found") {
 //       return res.status(404).json({
 //         message: "Người dùng không tồn tại trong Firebase Authentication.",
@@ -355,20 +361,13 @@ exports.checkEmailExists = async (req, res) => {
 //       .json({ error: "Đã xảy ra lỗi khi lấy thông tin người dùng." });
 //   }
 // };
-
-// Lấy thông tin người dùng bất kỳ bằng UID (ví dụ cho admin)
+// ...existing code...
 exports.getUserByUid = async (req, res) => {
   const { uid } = req.params;
 
   if (!uid) {
     return res.status(400).json({ error: "UID người dùng là bắt buộc." });
   }
-  // Tùy chọn: Kiểm tra quyền admin ở đây nếu cần
-  // const requesterUid = req.user.uid; // Người dùng đang thực hiện request
-  // const requesterDoc = await firestoreService.collection("user_service").doc(requesterUid).get();
-  // if (!requesterDoc.exists || requesterDoc.data().role !== "2") {
-  //   return res.status(403).json({ error: "Không có quyền truy cập thông tin người dùng này." });
-  // }
 
   try {
     const userDocRef = firestoreService.collection("user_service").doc(uid);
@@ -376,21 +375,61 @@ exports.getUserByUid = async (req, res) => {
 
     if (!userDoc.exists) {
       // Thử lấy thông tin từ Firebase Auth nếu không có trong Firestore
-      const firebaseUser = await admin.auth().getUser(uid);
-      return res.status(200).json({
-        user: {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-          firestoreDataMissing: true,
-        },
-      });
+      try {
+        const firebaseUser = await admin.auth().getUser(uid);
+        return res.status(200).json({
+          user: {
+            uid: firebaseUser.uid, // Auth UID
+            docId: firebaseUser.uid, // Để nhất quán với client
+            email: firebaseUser.email,
+            fullName: firebaseUser.displayName || firebaseUser.email, // Sử dụng displayName làm fullName fallback
+            // photoURL: firebaseUser.photoURL,
+            // Các trường này không có trong Firebase Auth, trả về null hoặc bỏ qua
+            role: null,
+            user_id: null,
+            firestoreDataMissing: true, // Cờ báo thiếu dữ liệu từ Firestore
+          },
+        });
+      } catch (authError) {
+        // Nếu không tìm thấy cả trong Firestore và Auth
+        if (authError.code === "auth/user-not-found") {
+          return res.status(404).json({
+            message: `Người dùng với UID ${uid} không tồn tại trong hệ thống.`,
+          });
+        }
+        // Lỗi khác khi truy vấn Firebase Auth
+        console.error(
+          `Lỗi khi lấy thông tin người dùng ${uid} từ Firebase Auth:`,
+          authError
+        );
+        return res
+          .status(500)
+          .json({ error: "Lỗi máy chủ khi xác thực người dùng." });
+      }
     }
-    res.status(200).json({ user: userDoc.data() });
+
+    // Nếu tìm thấy trong Firestore
+    const userDataFromFirestore = userDoc.data();
+    res.status(200).json({
+      user: {
+        uid: userDoc.id, // UID (Document ID từ Firestore)
+        docId: userDoc.id, // Thêm docId để nhất quán với client
+        email: userDataFromFirestore.email,
+        fullName: userDataFromFirestore.full_name, // Ánh xạ full_name từ Firestore sang fullName
+        // Các trường khác từ Firestore nếu client cần
+        gender: userDataFromFirestore.gender,
+        birthday: userDataFromFirestore.birthday, // Client sẽ cần parse nếu là Timestamp
+        role: userDataFromFirestore.role,
+        user_id: userDataFromFirestore.user_id, // Mã người dùng tùy chỉnh
+        firestoreDataMissing: false,
+      },
+    });
   } catch (error) {
-    console.error(`Lỗi lấy thông tin người dùng ${uid}:`, error);
+    // Lỗi chung khi truy vấn Firestore (không phải lỗi không tìm thấy user đã xử lý ở trên)
+    console.error(`Lỗi chung khi lấy thông tin người dùng ${uid}:`, error);
+    // Tránh trả về chi tiết lỗi nếu không phải là lỗi "user-not-found" đã được xử lý
     if (error.code === "auth/user-not-found") {
+      // Double check, dù đã có try-catch bên trong
       return res.status(404).json({
         message: "Người dùng không tồn tại trong Firebase Authentication.",
       });
@@ -400,3 +439,124 @@ exports.getUserByUid = async (req, res) => {
       .json({ error: "Đã xảy ra lỗi khi lấy thông tin người dùng." });
   }
 };
+
+// --- THÊM CONTROLLER MỚI ---
+// Tạo/Cập nhật thông tin chi tiết người dùng trong Firestore
+exports.setUserDetails = async (req, res) => {
+  // Thông tin này nên được lấy từ authMiddleware nếu API này yêu cầu admin phải đăng nhập
+  // const adminUid = req.user.uid; // Giả sử admin đã được xác thực
+
+  // Tuy nhiên, theo mô tả, admin đã đăng ký user và giờ muốn set details
+  // nên có thể không cần check quyền admin ở đây nếu luồng đã được bảo vệ ở tầng khác
+  // hoặc nếu API này chỉ dành cho admin.
+
+  const {
+    uid, // Firebase UID của người dùng cần cập nhật (sẽ là Document ID)
+    email, // Email của người dùng (có thể dùng để kiểm tra hoặc không, tùy logic)
+    birthday, // Sẽ là chuỗi dạng "YYYY-MM-DD" hoặc tương tự từ client
+    full_name,
+    gender,
+    role,
+    user_id, // Mã nhân viên tùy chỉnh (string)
+  } = req.body;
+
+  // Kiểm tra các trường bắt buộc
+  if (!uid) {
+    return res
+      .status(400)
+      .json({ error: "UID (Firebase User ID) là bắt buộc." });
+  }
+  if (!email) {
+    // Email có thể không bắt buộc nếu chỉ dựa vào UID, nhưng thường nên có để đối chiếu
+    return res.status(400).json({ error: "Email là bắt buộc." });
+  }
+  if (!full_name) {
+    return res
+      .status(400)
+      .json({ error: "Họ và tên (full_name) là bắt buộc." });
+  }
+  if (!role) {
+    return res.status(400).json({ error: "Vai trò (role) là bắt buộc." });
+  }
+  if (user_id === undefined || user_id === null) {
+    // user_id có thể là chuỗi rỗng, nhưng phải được cung cấp
+    return res
+      .status(400)
+      .json({ error: "Mã người dùng (user_id) là bắt buộc." });
+  }
+
+  try {
+    // Kiểm tra xem người dùng có tồn tại trong Firebase Authentication không (tùy chọn nhưng nên có)
+    try {
+      await admin.auth().getUser(uid);
+    } catch (authError) {
+      if (authError.code === "auth/user-not-found") {
+        return res.status(404).json({
+          error: `Người dùng với UID ${uid} không tồn tại trong Firebase Authentication.`,
+        });
+      }
+      // Lỗi khác khi lấy user từ Auth
+      console.error(
+        "Lỗi khi kiểm tra người dùng trong Firebase Auth:",
+        authError
+      );
+      return res.status(500).json({ error: "Lỗi khi xác thực người dùng." });
+    }
+
+    const userDocRef = firestoreService.collection("user_service").doc(uid);
+
+    // --- THAY ĐỔI Ở ĐÂY ---
+    let birthdayTimestamp = null;
+    if (birthday) {
+      // Kiểm tra xem birthday có phải là một chuỗi ngày hợp lệ không trước khi chuyển đổi
+      // Ví dụ đơn giản: new Date(birthday) sẽ trả về "Invalid Date" nếu chuỗi không hợp lệ
+      const dateObject = new Date(birthday);
+      if (!isNaN(dateObject.getTime())) {
+        // Kiểm tra xem dateObject có hợp lệ không
+        birthdayTimestamp = admin.firestore.Timestamp.fromDate(dateObject);
+      } else {
+        // Xử lý trường hợp birthday không phải là định dạng ngày hợp lệ
+        // Bạn có thể trả về lỗi 400 hoặc bỏ qua trường birthday
+        console.warn(
+          `Định dạng birthday không hợp lệ: ${birthday}. Sẽ lưu là null.`
+        );
+        // Hoặc: return res.status(400).json({ error: `Định dạng birthday không hợp lệ: ${birthday}` });
+      }
+    }
+
+    const userData = {
+      email,
+      birthday: birthdayTimestamp, // <<< SỬ DỤNG GIÁ TRỊ TIMESTAMP
+      full_name,
+      gender: gender || null,
+      role,
+      user_id,
+      // createdAt: admin.firestore.FieldValue.serverTimestamp(), // Nếu tạo mới
+      // updatedAt: admin.firestore.FieldValue.serverTimestamp(), // Luôn cập nhật
+    };
+    // --- KẾT THÚC THAY ĐỔI ---
+
+    await userDocRef.set(userData, { merge: true });
+
+    res.status(200).json({
+      message: `Thông tin chi tiết cho người dùng UID ${uid} đã được lưu thành công.`,
+      data: userData, // userData ở đây sẽ có birthday là đối tượng Timestamp
+    });
+  } catch (error) {
+    console.error("Lỗi khi lưu thông tin chi tiết người dùng:", error);
+    res
+      .status(500)
+      .json({ error: "Đã xảy ra lỗi khi lưu thông tin chi tiết người dùng." });
+  }
+};
+
+// module.exports = {
+//   registerUser,
+//   loginUser,
+//   forgotPassword,
+//   adminLogin,
+//   checkEmailExists,
+//   // getCurrentUser, // Bạn đã comment dòng này
+//   getUserByUid,
+//   setUserDetails, // <<< THÊM: Export controller mới
+// };
