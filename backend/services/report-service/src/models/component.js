@@ -13,8 +13,9 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       is_completed: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
+        type: DataTypes.ENUM("not started", "in progress", "done"),
+        allowNull: false,
+        defaultValue: "not started",
       },
       productCode: {
         type: DataTypes.STRING,

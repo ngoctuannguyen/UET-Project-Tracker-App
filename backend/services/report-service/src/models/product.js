@@ -13,14 +13,25 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       progress: {
-        type: DataTypes.STRING,
+        type: DataTypes.FLOAT,
+        allowNull: false,
       },
       status: {
-        type: DataTypes.ENUM,
-        values: ["in-progress", "completed", "on-hold"],
+        type: DataTypes.ENUM("not started", "in progress", "done"),
+        allowNull: false,
+        defaultValue: "not started",
       },
-      timeSpent: {
-        type: DataTypes.INTEGER,
+      // timeSpent: {
+      //   type: DataTypes.INTEGER,
+      // },
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+      },
+      project_due: {
+        type: DataTypes.DATE,
+        allowNull: false,
       },
     },
     {
