@@ -1,28 +1,53 @@
 module.exports = (sequelize, DataTypes) => {
-    const Product = sequelize.define('Product', {
+  const Product = sequelize.define(
+    "Product",
+    {
       productCode: {
         type: DataTypes.STRING,
         allowNull: false,
         primaryKey: true,
       },
       name: {
+        // Đổi tên trường này thành productName để nhất quán
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
       },
       progress: {
-        type: DataTypes.STRING
+        type: DataTypes.FLOAT,
+        allowNull: false,
       },
       status: {
-        type: DataTypes.ENUM,
-        values: ['in-progress', 'completed', 'on-hold'],},
-      timeSpent: {
-        type: DataTypes.INTEGER
-      }
-    }, {
-      tableName: 'products',
-      timestamps: false
+        type: DataTypes.ENUM("not started", "in progress", "done"),
+        allowNull: false,
+        defaultValue: "not started",
+      },
+      // timeSpent: {
+      //   type: DataTypes.INTEGER,
+      // },
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+      },
+      project_due: {
+        type: DataTypes.DATE,
+        allowNull: false,
+      },
+    },
+    {
+      tableName: "products",
+      timestamps: false,
+    }
+  );
+
+  // <<< THÊM: Định nghĩa mối quan hệ >>>
+  Product.associate = function (models) {
+    Product.hasMany(models.Component, {
+      foreignKey: "productCode",
+      sourceKey: "productCode",
+      as: "Components", // Alias cho danh sách các components
     });
-  
-    return Product;
   };
-  
+
+  return Product;
+};
