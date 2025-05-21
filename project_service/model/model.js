@@ -32,7 +32,7 @@ class Project {
         }
 
         const progressEntry = {
-            task_id: uuidv4(),
+            task_id: taskData.task_id,
             start_date: admin.firestore.Timestamp.fromDate(new Date(taskData.start_date)),
             employee_id: taskData.employee_id,
             work_description: taskData.work_description,
