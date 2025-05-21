@@ -212,7 +212,6 @@ exports.updateUserProfile = async (req, res) => {
 
 //________________________________________________________________________________
 //forgot pass:
-
 // --- Cập nhật forgotPassword ---
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;

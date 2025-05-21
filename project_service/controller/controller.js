@@ -17,7 +17,7 @@ const projectController = {
 
             await RabbitMQService.publishEvent('event.project.created', 
                 createEvent('PROJECT_CREATED', {
-                    project: newProject
+                    project: newProject,
                 })
             );
 

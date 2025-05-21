@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const projectController = require('../controller/controller');
 const { ProjectMiddleware } = require('../middleware/middleware');
+const authMiddleware = require('../middleware/auth_middleware');
 
 // Project Routes
-router.post('/projects/', ProjectMiddleware.validateProjectData, projectController.createProject);
+router.post('/projects/', authMiddleware, ProjectMiddleware.validateProjectData, projectController.createProject);
 router.get('/projects/', projectController.getAllProjects);
 router.get('/projects/:projectId', ProjectMiddleware.checkProjectExists, projectController.getProjectById);
 router.put('/projects/:projectId', ProjectMiddleware.checkProjectExists, projectController.updateProject);
@@ -22,6 +23,7 @@ router.get("/projects/:projectId/tasks/:taskId",
 // Employee Management
 router.post(
   '/projects/:projectId/employees/:employeeId',
+  authMiddleware,
   ProjectMiddleware.validateEmployee,
   projectController.addEmployee
 );
