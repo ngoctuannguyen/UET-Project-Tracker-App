@@ -4,9 +4,6 @@ import { useAuth } from "../context/AuthContext";
 import io from "socket.io-client";
 import GroupChatInfo from "../components/GroupChatInfo";
 import { MentionsInput, Mention } from "react-mentions";
-// import "react-mentions/dist/styles.css";
-
-// import { useNavigate } from "react-router-dom"; // Bỏ comment nếu bạn cần điều hướng
 
 // --- URL Configuration ---
 const CHAT_SERVICE_API_URL = "http://localhost:3002/api";

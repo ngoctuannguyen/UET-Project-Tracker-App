@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import { autoBatchEnhancer } from '@reduxjs/toolkit';
+import { useAuth } from '@/context/AuthContext';
 
 const ProjectCreateOverlay = ({ visible, onClose }) => {
   const [formData, setFormData] = useState({
     project_name: '',
     client: '',
-    project_leader: '',
     project_due: '',
     project_description: ''
   });
   const [status, setStatus] = useState('idle');
   const [errors, setErrors] = useState({});
+  const { auth, login } = useAuth();
 
   useEffect(() => {
     if (!visible) {
@@ -29,7 +31,6 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
   const validateForm = () => {
     const newErrors = {};
     if (!formData.project_name.trim()) newErrors.project_name = 'Project name is required';
-    if (!formData.project_leader.trim()) newErrors.project_leader = 'Project leader is required';
     if (!formData.client.trim()) newErrors.client = 'Client is required';
     if (!formData.project_due) newErrors.project_due = 'Due date is required';
     if (!formData.project_description) newErrors.project_description = 'Description is required';
@@ -46,13 +47,16 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
     e.preventDefault();
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) return setErrors(validationErrors);
-
+    console.log(auth.userData.user_id);
     setStatus('loading');
     try {
       await axios.post('/api/projects', {
         ...formData,
+        project_leader: auth.userData.user_id,
         project_due: new Date(formData.project_due).toLocaleDateString() // Convert to ISO format
-      });
+      }, {
+        headers: { Authorization: `Bearer ${auth.idToken}`, "Content-Type": "application/json" }
+      }); 
       setStatus('success');
       setTimeout(onClose, 1500);
     } catch (error) {
@@ -105,28 +109,6 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
                 />
                 {errors.project_name && (
                   <p className="text-red-500 text-sm mt-1">{errors.project_name}</p>
-                )}
-              </div>
-
-              {/* Project Leader */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Project Leader *
-                </label>
-                <input
-                  type="text"
-                  name="project_leader"
-                  value={formData.project_leader}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 ${
-                    errors.project_leader 
-                      ? 'border-red-500 focus:ring-red-200' 
-                      : 'border-gray-300 focus:ring-blue-200'
-                  }`}
-                  placeholder="Enter leader's name"
-                />
-                {errors.project_leader && (
-                  <p className="text-red-500 text-sm mt-1">{errors.project_leader}</p>
                 )}
               </div>
 
