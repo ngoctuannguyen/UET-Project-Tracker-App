@@ -168,22 +168,23 @@ exports.getUserProfile = async (req, res) => {
 };
 
 exports.updateUserProfile = async (req, res) => {
-  const idToken = req.cookies.idToken || req.headers.authorizations;
-  const { full_name, birthday } = req.body;
-
-  if (!idToken) {
-    return res.status(401).json({ error: "Người dùng chưa đăng nhập." });
-  }
 
   try {
+
+    let idToken = req.cookies.idToken || req.headers.authorization; 
+    console.log(idToken);
+    idToken = idToken?.startsWith("Bearer ") ? idToken.split(" ")[1] : idToken;
+    const { full_name, birthday } = req.body;
+    if (!idToken) {
+      return res.status(401).json({ error: "Người dùng chưa đăng nhập." });
+    }
     // Xác thực token với Firebase để lấy uid
     const decodedToken = await axios.post(
       `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.FIREBASE_API_KEY}`,
-      { idToken }
+      { idToken },
     );
     const user = decodedToken.data.users[0];
     const uid = user.localId || user.userId || user.uid;
-
     // Cập nhật thông tin trên Firestore (nếu bạn lưu thêm thông tin ở đây)
     const userDocRef = firestoreService.collection("user_service").doc(uid);  
     await userDocRef.set(
