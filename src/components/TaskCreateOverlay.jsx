@@ -19,7 +19,7 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
     try {
       // Prepare the request body
       const requestBody = {
-        taskId: taskId,
+        task_id: taskId,
         work_description: taskTitle,
         employee_id: assignee,
         deadline: dueDate,
