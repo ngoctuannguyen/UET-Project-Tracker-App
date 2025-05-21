@@ -51,11 +51,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (userCredential.user != null) {
           final String authUid = userCredential.user!.uid;
-          // <<< THÊM: Lấy idToken >>>
           final String? idToken = await userCredential.user!.getIdToken();
 
           print('Đăng nhập Firebase Auth thành công. UID: $authUid');
-          // print('Firebase ID Token: $idToken'); // Log token để kiểm tra (chỉ trong dev)
 
           if (idToken == null) {
             print('Lỗi: Không thể lấy được ID Token từ Firebase.');
@@ -73,7 +71,6 @@ class _LoginScreenState extends State<LoginScreen> {
             return;
           }
 
-          // <<< THÊM: Lưu token vào AuthService >>>
           await _authService.saveToken(idToken);
 
           UserModel? loggedInUser = await _userService.getUserByAuthUid(
@@ -84,37 +81,61 @@ class _LoginScreenState extends State<LoginScreen> {
 
           if (loggedInUser != null) {
             print(
-              'Lấy được thông tin user từ Firestore: ${loggedInUser.fullName}, docId: ${loggedInUser.docId}, userId: ${loggedInUser.userId}',
+              'Lấy được thông tin user từ Firestore: ${loggedInUser.fullName}, docId: ${loggedInUser.docId}, userId: ${loggedInUser.userId}, role: ${loggedInUser.role}',
             );
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HomeScreen(currentUser: loggedInUser),
-              ),
-            );
+
+            // <<< KIỂM TRA ROLE NGƯỜI DÙNG >>>
+            if (loggedInUser.role == "1") {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => HomeScreen(currentUser: loggedInUser),
+                ),
+              );
+            } else {
+              // Người dùng không có quyền truy cập
+              print(
+                'Lỗi: Người dùng không có quyền truy cập (role: ${loggedInUser.role}). Yêu cầu role "1".',
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Bạn không có quyền truy cập ứng dụng này.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+              await _auth.signOut(); // Đăng xuất người dùng
+              await _authService.deleteToken(); // Xóa token đã lưu
+            }
           } else {
+            // Không tìm thấy dữ liệu Firestore cho người dùng đã xác thực
             print(
               'Lỗi: Không tìm thấy dữ liệu Firestore cho Auth UID: [$authUid]',
             );
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Lỗi: Không tìm thấy dữ liệu người dùng liên kết trong hệ thống.',
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Lỗi: Không tìm thấy dữ liệu người dùng liên kết trong hệ thống.',
+                  ),
+                  backgroundColor: Colors.red,
                 ),
-                backgroundColor: Colors.red,
-              ),
-            );
+              );
+            }
             await _auth.signOut();
-            await _authService.deleteToken(); // Xóa token nếu có lỗi
+            await _authService.deleteToken();
           }
         } else {
           print('Lỗi: UserCredential có user là null sau khi đăng nhập.');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đăng nhập thất bại. Vui lòng thử lại.'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Đăng nhập thất bại. Vui lòng thử lại.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       } on FirebaseAuthException catch (e) {
         print('Lỗi đăng nhập Firebase Auth: ${e.code} - ${e.message}');

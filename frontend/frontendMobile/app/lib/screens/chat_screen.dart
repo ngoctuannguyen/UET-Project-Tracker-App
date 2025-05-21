@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:app/models/user_model.dart'; // Đảm bảo bạn đã import UserModel
-import 'package:intl/intl.dart'; // For date formatting
-import 'package:app/services/auth_service.dart'; // <<< THÊM: Import AuthService
-import 'package:app/screens/login_screen.dart'; // <<< THÊM: Import LoginScreen để điều hướng
+import 'package:app/models/user_model.dart';
+import 'package:intl/intl.dart';
+import 'package:app/services/auth_service.dart';
+import 'package:app/screens/login_screen.dart';
 
 class ChatMessage {
   final String id;
@@ -91,13 +91,15 @@ class _ChatScreenState extends State<ChatScreen> {
   late IO.Socket socket;
   bool _isLoadingMessages = true;
   bool _isConnected = false;
-  final AuthService _authService =
-      AuthService(); // <<< THÊM: Khởi tạo AuthService
+  final AuthService _authService = AuthService();
 
-  // --- Configuration ---
-  static const String _chatServiceBaseUrl =
-      'http://localhost:3002'; // PORT của chat-service
-  // ---
+  static const String _chatServiceBaseUrl = 'http://localhost:3002';
+  static const String _userServiceBaseUrl =
+      'http://localhost:3000'; // <<< THÊM DÒNG NÀY
+
+  // <<< THÊM: Biến state cho dialog thành viên >>>
+  bool _isLoadingDialogMembers = false;
+  List<Map<String, String>> _dialogMembersList = [];
 
   @override
   void initState() {
@@ -407,6 +409,198 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  // <<< THÊM: Hàm hiển thị dialog thành viên >>>
+  Future<void> _fetchAndShowGroupMembersDialog(BuildContext context) async {
+    final String groupId = widget.chatTargetId;
+    final String groupName = widget.chatTargetName;
+
+    if (!mounted) return;
+    setState(() {
+      _isLoadingDialogMembers = true;
+      _dialogMembersList = [];
+    });
+
+    final String? token = await _authService.getToken();
+    if (token == null) {
+      print("Error fetching group members: No auth token found.");
+      if (mounted) {
+        _handleApiError("Token not found for fetching members", 401);
+      }
+      setState(() => _isLoadingDialogMembers = false);
+      return;
+    }
+
+    // Hiển thị dialog ngay lập tức với trạng thái loading
+    // Dialog sẽ được cập nhật nội dung khi dữ liệu được tải xong
+    // (Phần showDialog giữ nguyên như cũ)
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false, // Giữ nguyên, không cho đóng khi đang tải
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialogState) {
+            return AlertDialog(
+              title: Text('Thành viên nhóm "$groupName"'),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: MediaQuery.of(context).size.height * 0.4,
+                child:
+                    _isLoadingDialogMembers
+                        ? const Center(child: CircularProgressIndicator())
+                        : (_dialogMembersList.isEmpty
+                            ? const Center(
+                              child: Text(
+                                'Không có thành viên hoặc lỗi tải dữ liệu.',
+                              ),
+                            )
+                            : ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: _dialogMembersList.length,
+                              itemBuilder: (ctx, index) {
+                                final member = _dialogMembersList[index];
+                                final isCurrentUser =
+                                    member['id'] == widget.currentUser.docId;
+                                return ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor:
+                                        isCurrentUser
+                                            ? Theme.of(
+                                              context,
+                                            ).primaryColorLight
+                                            : Colors.grey[300],
+                                    child: Text(
+                                      member['name']!.isNotEmpty
+                                          ? member['name']![0].toUpperCase()
+                                          : '?',
+                                    ),
+                                  ),
+                                  title: Text(
+                                    member['name']!,
+                                    style: TextStyle(
+                                      fontWeight:
+                                          isCurrentUser
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                    ),
+                                  ),
+                                );
+                              },
+                            )), // <<< ĐẾN ĐÂY
+              ),
+              actions: <Widget>[
+                if (!_isLoadingDialogMembers)
+                  TextButton(
+                    child: const Text('Đóng'), // <<< THÊM child
+                    onPressed: () {
+                      // <<< THÊM onPressed
+                      Navigator.of(dialogContext).pop();
+                    },
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    try {
+      final memberIdsUrl = Uri.parse(
+        '$_chatServiceBaseUrl/api/groups/$groupId/members',
+      );
+      print("Fetching member IDs from: $memberIdsUrl");
+      final memberIdsResponse = await http.get(
+        memberIdsUrl,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (!mounted) return;
+
+      if (memberIdsResponse.statusCode != 200) {
+        _handleApiError(memberIdsResponse.body, memberIdsResponse.statusCode);
+        // Không đóng dialog ở đây nếu nó đã được hiển thị, chỉ cập nhật trạng thái
+        setState(() => _isLoadingDialogMembers = false);
+        // Nếu dialog chưa được hiển thị hoặc bạn muốn đóng khi có lỗi nghiêm trọng:
+        // if (Navigator.canPop(context)) Navigator.pop(context);
+        return;
+      }
+
+      final List<dynamic> idsJson = jsonDecode(memberIdsResponse.body);
+      final List<String> memberIds =
+          idsJson.map((id) => id.toString()).toList();
+      print("Fetched member IDs: $memberIds");
+
+      List<Map<String, String>> fetchedMembersTemp = [];
+      for (String userIdInGroup in memberIds) {
+        final userUrl = Uri.parse(
+          '$_userServiceBaseUrl/api/auth/user/$userIdInGroup', // <<< SỬA ĐƯỜNG DẪN Ở ĐÂY
+        );
+        print("Fetching user details for $userIdInGroup from $userUrl");
+
+        final userResponse = await http.get(
+          userUrl,
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+        );
+
+        if (!mounted) return;
+        if (userResponse.statusCode == 200) {
+          final userJson = jsonDecode(userResponse.body);
+          String name = 'Unknown User';
+          String id = userIdInGroup;
+
+          if (userJson['user'] != null && userJson['user'] is Map) {
+            final userData = userJson['user'] as Map<String, dynamic>;
+            name = userData['fullName']?.toString() ?? 'User'; // Đọc 'fullName'
+            id =
+                userData['uid']?.toString() ??
+                userData['docId']?.toString() ??
+                userIdInGroup; // Đọc 'uid' hoặc 'docId'
+          } else {
+            print(
+              "Warning: User data from API for $userIdInGroup is not in the expected format { user: {...} }",
+            );
+            name = userJson['fullName']?.toString() ?? 'User'; // Fallback
+            id =
+                userJson['uid']?.toString() ??
+                userJson['docId']?.toString() ??
+                userIdInGroup; // Fallback
+          }
+          fetchedMembersTemp.add({'id': id, 'name': name});
+        } else {
+          print(
+            'Lỗi tải thông tin user $userIdInGroup: ${userResponse.statusCode} - ${userResponse.body}',
+          );
+          _handleApiError(userResponse.body, userResponse.statusCode);
+          fetchedMembersTemp.add({
+            'id': userIdInGroup,
+            'name': 'User $userIdInGroup (Lỗi)',
+          });
+        }
+      }
+
+      if (mounted) {
+        // Cập nhật StateSetter của dialog nếu nó đang hiển thị
+        // Hoặc setState của _ChatScreenState nếu dialog chưa được build xong với dữ liệu mới
+        setState(() {
+          _dialogMembersList = fetchedMembersTemp;
+          _isLoadingDialogMembers = false;
+        });
+      }
+    } catch (e) {
+      _handleApiError(e, null);
+      if (mounted) {
+        // Tương tự, cập nhật trạng thái loading và có thể đóng dialog nếu cần
+        setState(() => _isLoadingDialogMembers = false);
+        // if (Navigator.canPop(context)) Navigator.pop(context);
+      }
+    }
+  }
+
   Widget _buildMessageBubble(ChatMessage message) {
     final isUserMessage = message.senderId == widget.currentUser.docId;
     return Align(
@@ -533,6 +727,25 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Text(widget.chatTargetName),
         backgroundColor: Colors.blueAccent,
         elevation: 1.0,
+        actions: [
+          // <<< THÊM IconButton vào actions >>>
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Xem thành viên nhóm',
+            onPressed: () {
+              if (widget.chatTargetId.isNotEmpty) {
+                _fetchAndShowGroupMembersDialog(context);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Lỗi: Không có ID nhóm để xem thành viên.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
