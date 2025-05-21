@@ -8,7 +8,8 @@ const {
   getCurrentUser,
   getUserByUid,
   getUserProfile,
-  updateUserProfile
+  updateUserProfile,
+  getUserByUserID
 } = require("../controllers/authController");
 const { authMiddleware, userMiddleware } = require("../middleware/authMiddleware");
 
@@ -26,5 +27,6 @@ router.put("/user/profile-update/", userMiddleware, updateUserProfile);
 // --- Các route yêu cầu xác thực (sử dụng authMiddleware) ---
 // router.get("/getUser", authMiddleware, getCurrentUser); // API lấy thông tin người dùng đang đăng nhập
 router.get("/user/:uid", authMiddleware, getUserByUid); // API lấy thông tin người dùng theo UID (thường cho admin)
+router.get("/user-userid/:user_id", getUserByUserID);
 
 module.exports = router;
