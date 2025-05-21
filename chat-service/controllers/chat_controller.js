@@ -539,9 +539,9 @@ const chatController = {
   changeAdmin: async (req, res) => {
     try {
       const groupId = req.params.groupId;
-      const adminToChange = req.body.admin; // UID của người cần xóa
+      const leaderId = req.body.leaderId; // UID của người cần xóa
 
-      if (!adminToChange) {
+      if (!leaderId) {
         return res.status(400).json({ error: "Admin ID is required." });
       }
 
@@ -550,13 +550,7 @@ const chatController = {
         return res.status(404).json({ error: "Group not found." });
       }
 
-      // if (!groupDoc.members || !groupDoc.members.includes(adminToChange)) {
-      //   return res
-      //     .status(400)
-      //     .json({ error: "User is not a member of this group." });
-      // }
-
-      const updatedGroup = await Group.changeAdmin(groupId, adminToChange);
+      const updatedGroup = await Group.changeAdmin(groupId, leaderId);
       res.json(updatedGroup);
     } catch (error) {
       console.error("Error removing group member:", error);

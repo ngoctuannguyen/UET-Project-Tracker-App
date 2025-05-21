@@ -1,6 +1,7 @@
 const amqp = require('amqplib');
 const axios = require('axios');
 const retry = require('async-retry');
+const { getUIDbyUserID } = require('../utils.js');
 
 class RabbitMQService {
     constructor() {
@@ -52,21 +53,24 @@ class RabbitMQService {
                 }
                 case 'event.project.employee.added': {
                     const { projectId, employeeId } = event.payload;
+                    const employee_uid = await getUIDbyUserID(employeeId);
                     await axios.put(`${chatBase}/internal/groups/${projectId}/members`,
-                            { member: employeeId });
+                            { member: employee_uid });
                     break;
                 }
                 case 'event.project.employee.removed': {
                     const { projectId, employeeId } = event.payload;
+                    const employee_uid = await getUIDbyUserID(employeeId);
                     await axios.delete(`${chatBase}/internal/groups/${projectId}/members`, { 
                         data: { 
-                            member: employeeId 
+                            member: employee_uid 
                         }});
                     break;
                 }
-                case 'event.project.admin.changed': {
-                    const { projectId, leaderId } = event.payload;
-                    await axios.put(`${chatBase}/internal/groups/${projectId}/change-admin`, { admin: leaderId });
+                case 'event.project.leader.updated': {
+                    const { projectId, admin } = event.payload;
+                    const admin_uid = await getUIDbyUserID(admin);
+                    await axios.put(`${chatBase}/internal/groups/${projectId}/change-admin`, { leaderId: admin_uid });
                     break;
                 }
                 default:
@@ -87,7 +91,7 @@ class RabbitMQService {
 
         const queue = await this.channel.assertQueue('chat-service', { exclusive: false });
         await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.employee.*');
-        await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.admin.*');
+        await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.leader.*');
         await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.created');
 
         this.channel.consume(queue.queue, async (msg) => {

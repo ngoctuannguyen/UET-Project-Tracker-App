@@ -24,3 +24,7 @@ async function getUIDbyUserID (user_id) {
 getUIDbyUserID("VNU100").then(uid => {
     console.log("Final UID:", uid);
 });
+
+module.exports = {
+    getUIDbyUserID
+};

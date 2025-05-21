@@ -156,7 +156,7 @@ const projectController = {
         try {
             const updatedProject = await Project.add_employee(
                 req.params.projectId,
-                req.params.employeeId
+                req.params.employeeId,
             );
 
             await RabbitMQService.publishEvent('event.project.employee.added', 
