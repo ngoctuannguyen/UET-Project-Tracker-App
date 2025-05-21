@@ -16,12 +16,15 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/auth": {
-        target: "htpp://localhost:3000/api",
-        changeOrigin: true
+      // Proxy /auth → http://localhost:3000/api
+      '/auth': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/auth/, '/api/auth'),
       },
-      "/api": {
-        target: "http://localhost:3001",
+      // Proxy /api → http://localhost:3001
+      '/api': {
+        target: 'http://localhost:3001',
         changeOrigin: true,
       }
     }
