@@ -1,6 +1,7 @@
 const amqp = require('amqplib');
 const axios = require('axios');
 const retry = require('async-retry');
+const { getUIDbyUserID } = require('../utils.js');
 
 class RabbitMQService {
     constructor() {
@@ -33,45 +34,48 @@ class RabbitMQService {
     }
 
     async handleEvent(routingKey, event) {
-        const apiBase = 'http://localhost:3002/api';
+        const chatBase = 'http://localhost:3002/api';
 
         await retry(async (bail) => {
             switch (routingKey) {
-                // case 'event.project.created': {
-                //     const { project, uid } = event.payload;
-                //     const groupChatData = {
-                //         admin: [uid],
-                //         members: project.employee_list,
-                //         group_name: project.project_name,
-                //         created_by: project.project_leader,
-                //         group_id: project.project_id,
-                //         uid: uid
-                //     }
-                //     await axios.post(`${apiBase}/internal/groups`, groupChatData);
-                //     break;
-                // }
-                // case 'event.project.employee.added': {
-                //     const { projectId, employeeId } = event.payload;
-                //     await axios.put(`${apiBase}/internal/groups/${projectId}/members`,
-                //             { member: employeeId });
-                //     break;
-                // }
-                // case 'event.project.employee.removed': {
-                //     const { projectId, employeeId } = event.payload;
-                //     await axios.delete(`${apiBase}/internal/groups/${projectId}/members`, { 
-                //         data: { 
-                //             member: employeeId 
-                //         }});
-                //     break;
-                // }
-                // case 'event.project.admin.changed': {
-                //     const { projectId, leaderId } = event.payload;
-                //     await axios.put(`${apiBase}/internal/groups/${projectId}/change-admin`, { admin: leaderId });
-                //     break;
-                // }
-                // default:
-                //     console.warn('Unknown event type:', routingKey);
-                //     bail(new Error('Unknown event type'));
+                case 'event.project.created': {
+                    const { project, uid } = event.payload;
+                    const groupChatData = {
+                        admin: [uid],
+                        members: project.employee_list,
+                        group_name: project.project_name,
+                        created_by: project.project_leader,
+                        group_id: project.project_id,
+                        uid: uid
+                    }
+                    await axios.post(`${chatBase}/internal/groups`, groupChatData);
+                    break;
+                }
+                case 'event.project.employee.added': {
+                    const { projectId, employeeId } = event.payload;
+                    const employee_uid = await getUIDbyUserID(employeeId);
+                    await axios.put(`${chatBase}/internal/groups/${projectId}/members`,
+                            { member: employee_uid });
+                    break;
+                }
+                case 'event.project.employee.removed': {
+                    const { projectId, employeeId } = event.payload;
+                    const employee_uid = await getUIDbyUserID(employeeId);
+                    await axios.delete(`${chatBase}/internal/groups/${projectId}/members`, { 
+                        data: { 
+                            member: employee_uid 
+                        }});
+                    break;
+                }
+                case 'event.project.leader.updated': {
+                    const { projectId, admin } = event.payload;
+                    const admin_uid = await getUIDbyUserID(admin);
+                    await axios.put(`${chatBase}/internal/groups/${projectId}/change-admin`, { leaderId: admin_uid });
+                    break;
+                }
+                default:
+                    console.warn('Unknown event type:', routingKey);
+                    bail(new Error('Unknown event type'));
             }
         }, {
             retries: 3,
@@ -87,7 +91,7 @@ class RabbitMQService {
 
         const queue = await this.channel.assertQueue('chat-service', { exclusive: false });
         await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.employee.*');
-        await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.admin.*');
+        await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.leader.*');
         await this.channel.bindQueue(queue.queue, this.exchange, 'event.project.created');
 
         this.channel.consume(queue.queue, async (msg) => {

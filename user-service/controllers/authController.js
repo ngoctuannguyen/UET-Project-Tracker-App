@@ -457,3 +457,35 @@ exports.getUserByUid = async (req, res) => {
       .json({ error: "Đã xảy ra lỗi khi lấy thông tin người dùng." });
   }
 };
+
+exports.getUserByUserID = async (req, res) => {
+  try {
+
+    if (!req.params.user_id) {
+      return res.status(400).json({ message: "Thiếu user_id trong request." });
+    }
+    const userDocRef = firestoreService
+      .collection("user_service")
+      .where("user_id", "==", req.params.user_id);
+    
+    const userDocSnapshot = await userDocRef.get();
+
+    if (userDocSnapshot.empty) {
+      return res.status(404).json({
+        message: `Không tìm thấy người dùng với user_id = ${req.params.user_id}`,
+      });
+    }
+
+    const userData = userDocSnapshot.docs[0].data();
+
+    return res.status(200).json({ data: userData });
+
+  } catch (error) {
+    console.error(`Lỗi lấy thông tin người dùng ${req.params.user_id}:`, error);
+
+    return res.status(500).json({
+      error: "Đã xảy ra lỗi khi lấy thông tin người dùng.",
+      details: error.message || error.toString(),
+    });
+  }
+};
