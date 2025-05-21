@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import axios from "axios";
+import { update } from "lodash";
 
 const Profile = () => {
   const { auth, login } = useAuth();
@@ -26,13 +28,26 @@ const Profile = () => {
           _nanoseconds: 0,
         },
       };
-      // Giả lập API cập nhật profile
+
+      console.log(updatedUserData);
+      
+      try {
+        await axios.put("/auth/user/profile-update", updatedUserData, {
+          headers: {
+            Authorization: `Bearer ${auth.idToken}`,
+            "Content-Type": "application/json"
+          }
+        });
+      } catch (error) {
+        console.error("Error updating profile:", error.response?.data || error.message);
+      }
+
       console.log("Updating profile with data:", updatedUserData);
       login(auth.idToken, auth.refreshToken, updatedUserData);
       setIsEditing(false);
       alert("Profile updated successfully!");
     } catch (error) {
-      console.error("Error updating profile:", error);
+      console.error("Error updating profile:", error.message);
       alert("Failed to update profile. Please try again.");
     }
   };

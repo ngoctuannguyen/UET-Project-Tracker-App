@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Pencil, Trash, Plus, Ban, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import UserFormOverlay from "@/components/UserFormOverlay";
 
 // Helper to generate random user_id
 const randomUserId = () => "U" + Math.random().toString(36).slice(2, 8).toUpperCase();

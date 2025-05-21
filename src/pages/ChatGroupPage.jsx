@@ -3,6 +3,8 @@ import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import io from "socket.io-client";
 import GroupChatInfo from "../components/GroupChatInfo";
+import { MentionsInput, Mention } from "react-mentions";
+// import "react-mentions/dist/styles.css";
 
 // import { useNavigate } from "react-router-dom"; // Bỏ comment nếu bạn cần điều hướng
 
@@ -250,6 +252,12 @@ const ChatGroupPage = () => {
     }
   }, [messages]);
 
+  const currentGroup = groups.find((g) => g.id === selectedGroupId);
+  const members = currentGroup?.members?.map(m => ({
+    id: m.uid,
+    display: m.full_name,
+  })) || [];
+
   const handleSelectGroup = (groupId) => {
     if (selectedGroupId === groupId) return;
     console.log("ChatGroupPage - User selected group:", groupId);
@@ -288,7 +296,17 @@ const ChatGroupPage = () => {
     (group.group_name || group.name || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const currentGroup = groups.find((g) => g.id === selectedGroupId);
+  function renderMessageText(text) {
+    // Tô màu các từ bắt đầu bằng @
+    return text.split(/(@\w[\w\s]*)/g).map((part, i) =>
+      part.startsWith("@") ? (
+        <span key={i} className="bg-yellow-200 text-yellow-800 rounded px-1">{part}</span>
+      ) : (
+        part
+      )
+    );
+  }
+
 
   if (!authChecked) {
     return <div className="h-screen flex items-center justify-center text-gray-500">Kiểm tra xác thực...</div>;
@@ -388,12 +406,6 @@ const ChatGroupPage = () => {
         {/* Chat messages and input form */}
         {selectedGroupId && currentGroup ? (
           <>
-            {/* <div className="bg-white shadow rounded-t-lg p-4 mb-0.5">
-                <h1 className="text-xl font-semibold text-gray-800">
-                {currentGroup.group_name || currentGroup.name || "Chat Room"}
-                </h1>
-            </div> */} {/* Group name đã được chuyển lên header ở trên */}
-
             <div className="flex-1 bg-white p-4 shadow rounded-lg overflow-y-auto mb-4 custom-scrollbar">
               {loadingMessages ? (
                 <div className="flex h-full items-center justify-center">
@@ -418,7 +430,7 @@ const ChatGroupPage = () => {
                             {msg.sender_name || "Unknown User"}
                         </p>
                       )}
-                      <p className="text-sm break-words">{msg.text}</p> {/* Thêm break-words */}
+                      <p className="text-sm break-words">{renderMessageText(msg.text)}</p>
                     </div>
                   </div>
                 ))
@@ -434,14 +446,24 @@ const ChatGroupPage = () => {
               onSubmit={handleSend}
               className="mt-auto flex items-center space-x-3 bg-white p-3 rounded-lg shadow"
             >
-              <input
-                type="text"
-                placeholder="Nhập tin nhắn..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={!selectedGroupId || loadingMessages}
-              />
+              <div className="flex-1">
+                <MentionsInput
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  placeholder="Nhập tin nhắn..."
+                  disabled={!selectedGroupId || loadingMessages}
+                  style={{ minHeight: 40, width: "100%" }}
+                >
+                  <Mention
+                    trigger="@"
+                    data={members}
+                    markup="@__display__"
+                    displayTransform={(id, display) => `@${display}`}
+                    appendSpaceOnAdd={true}
+                  />
+                </MentionsInput>
+              </div>
               <button
                 type="submit"
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:bg-blue-300 disabled:cursor-not-allowed"

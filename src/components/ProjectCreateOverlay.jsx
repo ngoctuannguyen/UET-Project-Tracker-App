@@ -8,6 +8,7 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
     client: '',
     project_leader: '',
     project_due: '',
+    project_description: ''
   });
   const [status, setStatus] = useState('idle');
   const [errors, setErrors] = useState({});
@@ -31,6 +32,7 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
     if (!formData.project_leader.trim()) newErrors.project_leader = 'Project leader is required';
     if (!formData.client.trim()) newErrors.client = 'Client is required';
     if (!formData.project_due) newErrors.project_due = 'Due date is required';
+    if (!formData.project_description) newErrors.project_description = 'Description is required';
     return newErrors;
   };
 
