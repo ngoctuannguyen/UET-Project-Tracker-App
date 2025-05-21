@@ -11,6 +11,7 @@ const TaskEditOverlay = ({ task, projectId, onClose, fetchProject }) => {
     employee_id: "",
     deadline: "",
     start_date: " ",
+    task_id: "",
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -36,7 +37,8 @@ const TaskEditOverlay = ({ task, projectId, onClose, fetchProject }) => {
             work_description: task.work_description || "",
             employee_id: task.employee_id || "",
             deadline: deadlineDate.toISOString().split("T")[0],
-            start_date: startDate.toISOString().split("T")[0]
+            start_date: startDate.toISOString().split("T")[0],
+            task_id: task.task_id || "",
           });
         } 
       } catch (err) {
@@ -101,6 +103,17 @@ const TaskEditOverlay = ({ task, projectId, onClose, fetchProject }) => {
         <h2 className="text-2xl font-bold mb-6">Edit Task</h2>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Barcode</label>
+            <input
+              type="text"
+              value={formData.task_id}
+              onChange={(e) => setFormData({ ...formData, task_id: e.target.value })}
+              className="w-full px-4 py-2 border rounded-lg"
+              required
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium mb-1">Task Description</label>
             <input
