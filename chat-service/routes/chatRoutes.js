@@ -3,7 +3,7 @@ const router = express.Router();
 const chatController = require("../controllers/chat_controller");
 const validateMessage = require("../middlewares/validateMessage");
 const validateGroup = require("../middlewares/validateGroup");
-const authMiddleware = require("../middlewares/authMiddleware"); // <<< THÊM DÒNG NÀY
+const authMiddleware = require("../middlewares/authMiddleware");
 const { changeAdmin } = require("../models/groupModel");
 
 // Group routes
@@ -29,12 +29,7 @@ router.put(
 
 router.put(
   "/internal/groups/:groupId/members",
-  chatController.addGroupMemberInternal
-); // validateGroup có thể không cần ở đây hoặc cần middleware riêng
-
-
-router.put(
-  "/internal/groups/:groupId/members",
+  authMiddleware,
   chatController.addGroupMemberInternal
 ); // validateGroup có thể không cần ở đây hoặc cần middleware riêng
 
@@ -45,6 +40,7 @@ router.get(
   authMiddleware,
   chatController.getUserGroups
 );
+
 router.put(
   "/groups/:groupId/admins",
   authMiddleware,

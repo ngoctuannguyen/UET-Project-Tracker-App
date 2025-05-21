@@ -43,7 +43,7 @@ const chatController = {
   createGroupInternal: async (req, res) => {
     try {
       const groupName = req.body.group_name;
-      const creatorId = req.body.created_by;
+      const creatorId = req.body.uid;
       let members = req.body.members || [];
       let groupAdmins = req.body.admin || []; // Trường admin trong group document
 
@@ -100,44 +100,6 @@ const chatController = {
           .status(403)
           .json({ error: "Forbidden: Only group admins can add members." });
       }
-
-      // Kiểm tra xem người dùng đã là thành viên chưa
-      if (groupDoc.members && groupDoc.members.includes(memberIdToAdd)) {
-        return res
-          .status(400)
-          .json({ error: "User is already a member of this group." });
-      }
-
-      const updatedGroup = await Group.addMember(groupId, memberIdToAdd);
-      res.json(updatedGroup);
-    } catch (error) {
-      console.error("Error adding group member:", error);
-      res
-        .status(500)
-        .json({ error: "Failed to add group member: " + error.message });
-    }
-  },
-
-  addGroupMemberInternal: async (req, res) => {
-    try {
-      const groupId = req.params.groupId;
-      const memberIdToAdd = req.body.member; // UID của người cần thêm
-
-      if (!memberIdToAdd) {
-        return res.status(400).json({ error: "Member ID to add is required." });
-      }
-
-      const groupDoc = await Group.getById(groupId);
-      if (!groupDoc) {
-        return res.status(404).json({ error: "Group not found." });
-      }
-
-      // Logic kiểm tra quyền: Chỉ admin của nhóm mới được thêm thành viên
-      // if (!groupDoc.admin || !groupDoc.admin.includes(requestingUserUid)) {
-      //   return res
-      //     .status(403)
-      //     .json({ error: "Forbidden: Only group admins can add members." });
-      // }
 
       // Kiểm tra xem người dùng đã là thành viên chưa
       if (groupDoc.members && groupDoc.members.includes(memberIdToAdd)) {
@@ -292,6 +254,50 @@ const chatController = {
         .json({ message: "Error fetching user groups", error: error.message });
     }
   },
+
+   getUserGroupsWOAuth: async (req, res) => {
+    try {
+      // UID này nên được lấy từ authMiddleware, không phải từ params nếu bạn muốn bảo mật
+      // Nếu bạn đang lấy từ req.user.uid (do authMiddleware gán vào) thì tốt
+      const requestingUserUid = req.user?.uid || req.params.userId; // Ưu tiên req.user.uid nếu có
+
+      console.log(
+        `[chat_controller.js] getUserGroups - Received request for user UID: ${requestingUserUid}`
+      );
+
+      if (!requestingUserUid) {
+        console.error(
+          "[chat_controller.js] getUserGroups - Error: User UID is missing."
+        );
+        return res.status(400).json({ message: "User UID is required." });
+      }
+
+      const groups = await Group.getByUser(requestingUserUid);
+      console.log(
+        `[chat_controller.js] getUserGroups - Groups found by model for user ${requestingUserUid}:`,
+        JSON.stringify(groups, null, 2)
+      );
+
+      if (!groups) {
+        // Kiểm tra nếu model trả về null/undefined (dù thường là mảng rỗng)
+        console.log(
+          `[chat_controller.js] getUserGroups - No groups array returned from model for user ${requestingUserUid}.`
+        );
+        return res.status(200).json([]);
+      }
+
+      res.status(200).json(groups);
+    } catch (error) {
+      console.error(
+        "[chat_controller.js] getUserGroups - Error fetching user groups:",
+        error
+      );
+      res
+        .status(500)
+        .json({ message: "Error fetching user groups", error: error.message });
+    }
+  },
+
   addGroupAdmin: async (req, res) => {
     try {
       const groupId = req.params.groupId;

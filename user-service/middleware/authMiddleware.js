@@ -87,6 +87,8 @@ const userMiddleware = async (req, res, next) => {
     return res.status(400).json({ message: "Tên không được chứa ký tự đặc biệt." });
   }
 
+  console.log("OK");
+
   next();
 
 };
