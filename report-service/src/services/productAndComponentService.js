@@ -6,12 +6,13 @@ const addProduct = async ( project ) => {
         {
             productCode: project.project_id,
             name: project.project_name,
-            progress: project.project_progress,
+            progress: project.project_progress || 0,
             status: project.project_status,
-            created_at: project.created_at,
-            project_due: project.project_due
+            created_at: new Date(project.created_at._seconds * 1000 + Math.floor(project.created_at._nanoseconds / 1e6)),
+            project_due: new Date(project.project_due._seconds * 1000 + Math.floor(project.project_due._nanoseconds / 1e6)),
         }
-        );
+    );
+    console.log(newProduct);
     return newProduct;
   } catch (error) {
     console.error('Error adding product:', error);
@@ -19,16 +20,18 @@ const addProduct = async ( project ) => {
   }
 }
 
-const addComponent = async ( newTask, projectId ) => {
+const addComponent = async ( task, projectId ) => {
     try {
         const newComponent = await Component.create(
             {
-                componentCode: newTask.task_id,
-                name: newTask.work_description,
+                componentCode: task.task_id,
+                name: task.work_description,
                 productCode: projectId,
-                is_completed: false
+                is_completed: task.status,
+                employeeId: task.employee_id
             }
             );
+        console.log(newComponent);
         return newComponent;
     } catch (error) {
         console.error('Error adding component:', error);
@@ -62,15 +65,16 @@ const deleteComponent = async (projectId, componentId, data) => {
     }
   }
 
-const updateComponent = async ( projectId, componentId, data ) => {
+const updateComponent = async ( projectId, task_id, data ) => {
     try {
-        const component = await Component.findByPk(componentId);
+        console.log(task_id, data);
+        const component = await Component.findByPk(task_id);
         if (!component) return { success: false, message: 'Component not found' };
         await component.update({
             name: data.work_description,
             is_completed: data.status,
             productCode: projectId,
-            componentCode: componentId
+            componentCode: task_id
         });
         return { success: true, message: 'Component updated successfully' };
     } catch (error) {

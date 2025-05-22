@@ -11,6 +11,7 @@ const {
     updateComponent
 } = require('../services/productAndComponentService');
 
+
 class RabbitMQConsumer {
     constructor() {
         this.connection = null;
@@ -79,17 +80,28 @@ class RabbitMQConsumer {
                 }
                 case 'event.project.updated':
                 case 'event.project.task.created': {
-                    const { newTask, projectId} = event.payload;
-                    await addComponent(newTask, projectId);
+                    console.log('Received event:', JSON.stringify(event, null, 2));
+                    const { task, projectId } = event.payload;
+                    if (!task || !projectId) {
+                        console.error('Missing data in event:', event);
+                        return;
+                    }
+                    await addComponent(task, projectId);
                     break;
                 }
                 case 'event.project.task.updated': {
-                    const { projectId, task_id, data } = event.payload; 
-                    await updateComponent(projectId, task_id, data);
+                    const { projectId, taskId, data } = event.payload; 
+                    try {
+                        const res = await updateComponent(projectId, taskId, data);
+                        console.log(res);
+                    } catch (error) {
+                        throw error;
+                    }
                     break;
                 }
                 case 'event.project.task.removed':
                     const { projectId, taskId, data } = event.payload;
+                    console.log(event.payload);
                     await deleteComponent(projectId, taskId, data);
                     break;
                 default:
