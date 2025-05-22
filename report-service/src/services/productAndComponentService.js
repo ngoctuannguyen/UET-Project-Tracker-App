@@ -1,30 +1,31 @@
-const { Report, Product, Employee,Component } = require('../models');
+const { Report, Product, Employee, Component } = require('../models');
 
-const addProduct = async (id, name,progress,status) => {
+const addProduct = async ( project ) => {
   try {
     const newProduct = await Product.create(
         {
-            productCode: id,
-            name: name,
-            progress: progress,
-            status: status,
-            timeSpent: 0
+            productCode: project.project_id,
+            name: project.project_name,
+            progress: project.project_progress,
+            status: project.project_status,
+            created_at: project.created_at,
+            project_due: project.project_due
         }
         );
     return newProduct;
   } catch (error) {
     console.error('Error adding product:', error);
-    throw new Error('Database error');
+    throw new Error('Error adding product');
   }
 }
 
-const addComponent = async (componentId,description,productId) => {
+const addComponent = async ( newTask, projectId ) => {
     try {
         const newComponent = await Component.create(
             {
-                componentCode: componentId,
-                name: description,
-                productCode: productId,
+                componentCode: newTask.task_id,
+                name: newTask.work_description,
+                productCode: projectId,
                 is_completed: false
             }
             );
@@ -33,7 +34,7 @@ const addComponent = async (componentId,description,productId) => {
         console.error('Error adding component:', error);
         throw new Error('Database error');
     }
-    }
+}
 
 const deleteProduct = async (productId) => {
   try {
@@ -48,7 +49,7 @@ const deleteProduct = async (productId) => {
   }
 }
 
-const deleteComponent = async (componentId) => {
+const deleteComponent = async (projectId, componentId, data) => {
     try {
         const component = await Component.findByPk(componentId);
         if (!component) return { success: false, message: 'Component not found' };
@@ -59,11 +60,29 @@ const deleteComponent = async (componentId) => {
         console.error('Error deleting component:', error);
         return { success: false, message: error.message };
     }
+  }
+
+const updateComponent = async ( projectId, componentId, data ) => {
+    try {
+        const component = await Component.findByPk(componentId);
+        if (!component) return { success: false, message: 'Component not found' };
+        await component.update({
+            name: data.work_description,
+            is_completed: data.status,
+            productCode: projectId,
+            componentCode: componentId
+        });
+        return { success: true, message: 'Component updated successfully' };
+    } catch (error) {
+        console.error('Error deleting component:', error);
+        return { success: false, message: error.message };
     }
+}
 
 module.exports = {
   addProduct,
   addComponent,
   deleteProduct,
   deleteComponent,
+  updateComponent
 };

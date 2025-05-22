@@ -37,7 +37,10 @@ const projectController = {
             );
     
             await RabbitMQService.publishEvent('event.project.task.created', 
-                createEvent('PROJECT_TASK_CREATED', newTask)
+                createEvent('PROJECT_TASK_CREATED', { 
+                    newTask: newTask, 
+                    projectId: req.params.projectId 
+                })
             );
     
             res.status(201).json(newTask);
