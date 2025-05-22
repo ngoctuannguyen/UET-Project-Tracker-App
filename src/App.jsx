@@ -16,9 +16,12 @@ import { Toaster } from "sonner";
 import ChatGroupPage from "@/pages/ChatGroupPage";
 import ChatAIPage from "@/pages/ChatAIPage";
 import NotFoundPage from "@/pages/NotFoundPage";
+import FcmTokenPage from "@/pages/FcmTokenPage";
+
 import PrivateRoute from "@/components/PrivateRoute"; // bảo vệ route thường
 import AdminRoute from "@/components/AdminRoute";
-import { AuthProvider } from "./context/AuthContext";
+import NotificationListener from "@/components/NotificationListener"; // lắng nghe thông báo từ firebaseimport { AuthProvider } from "./context/AuthContext";
+import { AuthProvider } from './context/AuthContext';
 import { ProjectsProvider } from './context/ProjectsContext';
 
 const App = () => {
@@ -27,7 +30,9 @@ const App = () => {
       <ProjectsProvider>
           <Router>
             <Toaster />
-            <Routes>
+            <NotificationListener />
+
+      <Routes>
               {/* Trang đăng nhập không có layout */}
               <Route path="/login" element={<LoginPage />} />
 
@@ -55,6 +60,7 @@ const App = () => {
                 <Route path="/chat-group" element={<ChatGroupPage />} />
                 <Route path="/chat-ai" element={<ChatAIPage />} />
                 <Route path="/notification" element={<NotificationPage />} />
+          <Route path="/fcm-token" element={<FcmTokenPage />} />
 
                 <Route path="/project/:id" element={<ProjectDetailPage />}>
                   <Route index element={<ProjectProgress />} />
