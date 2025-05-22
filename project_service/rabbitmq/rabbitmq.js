@@ -55,7 +55,7 @@ class RabbitMQService {
   }
 
   async handleEvent(routingKey, event) {
-    const chatBase = "http://localhost:3002/api";
+    const chatBase = "http://localhost:3002/api"; // Giữ nguyên nếu bạn vẫn dùng cho chat-service
 
     await retry(
       async (bail) => {
@@ -110,24 +110,44 @@ class RabbitMQService {
           }
           case "event.report.task.updated": {
             // Sự kiện từ report-service
-            const { productCode, componentCode, is_completed } = event.payload;
+            const {
+              productCode,
+              componentCode,
+              is_completed,
+              product_progress,
+            } = event.payload;
             console.log(
-              `[Project Service] Received event.report.task.updated for component ${componentCode} in project ${productCode}`
+              `[Project Service] Received event.report.task.updated for component ${componentCode} in project ${productCode}. New product progress: ${product_progress}%`
             );
             try {
-              // productCode từ report-service là project_id ở đây
-              // componentCode từ report-service là task_id ở đây
+              // 1. Cập nhật trạng thái của task (component)
               await Project.updateTaskStatusFromReport(
-                productCode,
-                componentCode,
+                productCode, // projectId trong project-service
+                componentCode, // taskId trong project-service
                 is_completed
               );
               console.log(
                 `[Project Service] Task ${componentCode} status in project ${productCode} updated to "${is_completed}" based on report.`
               );
+
+              // 2. Cập nhật progress_progress của project
+              if (product_progress !== undefined && productCode) {
+                // Kiểm tra product_progress có tồn tại không
+                await Project.updateProjectProgress(
+                  productCode,
+                  product_progress
+                );
+                console.log(
+                  `[Project Service] Project ${productCode} progress_progress updated to ${product_progress}%.`
+                );
+              } else {
+                console.warn(
+                  `[Project Service] product_progress or productCode missing in event payload for project ${productCode}. Progress not updated.`
+                );
+              }
             } catch (modelError) {
               console.error(
-                `[Project Service] Error updating task ${componentCode} status from report event:`,
+                `[Project Service] Error processing event.report.task.updated for ${componentCode}/${productCode}:`,
                 modelError.message
               );
               if (modelError.message.includes("not found")) {

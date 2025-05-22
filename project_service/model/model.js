@@ -503,9 +503,41 @@ class Project {
 
     return projectRef.get().then((doc) => doc.data()); // Trả về project data đã cập nhật (hoặc chưa nếu không có gì thay đổi)
   }
+  static async updateProjectProgress(projectId, newProgress) {
+    const projectRef = project_service.doc(projectId);
+    const projectDoc = await projectRef.get();
 
-  // Phương thức cũ hơn, nếu bạn muốn giữ lại để tham khảo hoặc cho mục đích khác
-  // nhưng cho yêu cầu hiện tại, updateTaskStatusFromReport là đủ
+    if (!projectDoc.exists) {
+      throw new Error(
+        `Project with ID ${projectId} not found for progress update.`
+      );
+    }
+
+    // Đảm bảo newProgress là một số
+    const progressValue = parseFloat(newProgress);
+    if (isNaN(progressValue) || progressValue < 0 || progressValue > 100) {
+      console.warn(
+        `[Project Model] Invalid progress value "${newProgress}" for project ${projectId}. Progress not updated.`
+      );
+      return projectDoc.data(); // Trả về data hiện tại nếu progress không hợp lệ
+    }
+
+    // Tên trường trong Firebase là progress_progress
+    if (projectDoc.data().progress_progress !== progressValue) {
+      await projectRef.update({
+        progress_progress: progressValue,
+      });
+      console.log(
+        `[Project Model] Project ${projectId} progress_progress updated to ${progressValue}%.`
+      );
+    } else {
+      console.log(
+        `[Project Model] Project ${projectId} progress_progress is already ${progressValue}%. No update needed.`
+      );
+    }
+
+    return projectRef.get().then((doc) => doc.data());
+  }
 }
 
 // const validProjectData = {
