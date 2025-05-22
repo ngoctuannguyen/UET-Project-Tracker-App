@@ -35,10 +35,12 @@ const projectController = {
                 req.params.projectId,
                 taskData
             );
-    
-            await RabbitMQService.publishEvent('event.project.task.created', 
-                createEvent('PROJECT_TASK_CREATED', newTask)
-            );
+
+            await RabbitMQService.publishEvent('event.project.task.created',
+                createEvent('PROJECT_TASK_CREATED', {
+                    task: taskData,
+                    projectId: req.params.projectId
+            }));
     
             res.status(201).json(newTask);
         } catch (error) {
@@ -77,11 +79,15 @@ const projectController = {
                 req.body
             );
 
+            const projectTasks = updatedProject.project_task;
+            const targetTask = projectTasks.find(task => task.task_id === req.params.taskId);
+            console.log(targetTask);
+
             await RabbitMQService.publishEvent('event.project.task.updated', 
                 createEvent('PROJECT_TASK_UPDATED', {
                     projectId: req.params.projectId,
                     taskId: req.params.taskId,
-                    data: updatedProject
+                    data: targetTask
                 })
             );
             
