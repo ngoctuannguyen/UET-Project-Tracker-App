@@ -76,7 +76,7 @@ async function initializeDatabase() {
     // Tùy chọn đồng bộ:
     // { force: true } sẽ xóa bảng và tạo lại (mất dữ liệu) - dùng cẩn thận khi dev
     // { alter: true } sẽ cố gắng cập nhật bảng để khớp model (an toàn hơn)
-    await sequelize.sync({ force: true });
+    await sequelize.sync({ alter: true });
     console.log("All models were synchronized successfully.");
   } catch (error) {
     console.error("Unable to connect or sync the database:", error);
