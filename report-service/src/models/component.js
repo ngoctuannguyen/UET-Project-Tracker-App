@@ -27,8 +27,8 @@ module.exports = (sequelize, DataTypes) => {
       },
       employeeId: {
         type: DataTypes.STRING,
-        allowNull: true,
-      }
+        allowNull: true, // Hoặc false nếu component luôn phải có người assign ngay từ đầu
+      },
     },
     {
       tableName: "components",

@@ -1,7 +1,7 @@
 {
     "database": "project_tracker",
     "username": "root",
-    "password": "12345678",
+    "password": "12345678910",
     "host": "localhost",
     "dialect": "mysql"
   }

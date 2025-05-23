@@ -15,6 +15,9 @@ const {
   addComponent,
   addProduct,
 } = require("./services/productAndComponentService");
+// mới bổ sung
+const projectRoutes = require("./routers/projectRoutes");
+
 // Initialize express app
 const app = express();
 const PORT = process.env.PORT || 3004;
@@ -40,9 +43,11 @@ initializeDatabase()
   });
 
 // Middleware
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/api/projects", projectRoutes);
 
 // Request logging
 
