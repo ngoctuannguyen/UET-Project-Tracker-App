@@ -25,6 +25,10 @@ module.exports = (sequelize, DataTypes) => {
           key: "productCode",
         },
       },
+      employeeId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      }
     },
     {
       tableName: "components",
