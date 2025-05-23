@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { toast } from "sonner";
 import axios from "axios";
 
-const TaskCreateOverlay = ({ onClose, projectId }) => {
+const TaskCreateOverlay = ({ onClose, projectId, onSuccess }) => {
   const [taskTitle, setTaskTitle] = useState("");
   const [assignee, setAssignee] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -15,35 +15,34 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
       toast.error("Please fill in all fields");
       return;
     }
-  
+
     try {
-      // Prepare the request body
       const requestBody = {
         task_id: taskId,
         work_description: taskTitle,
         employee_id: assignee,
         deadline: dueDate,
-        start_date: startDate
+        start_date: startDate,
       };
-  
-      // Send the POST request with the request body
-      await axios.post(`/api/projects/${projectId}`, requestBody)
+
+      await axios.post(`/api/projects/${projectId}`, requestBody);
       toast.success("Task created successfully!");
-      onClose(); // Close the overlay after successful creation
+      
+      onSuccess?.();  // Call onSuccess callback if provided
+      onClose();     // Close overlay
     } catch (error) {
       console.error("Error creating task:", error);
-      const errorMessage =
-        "An error occurred while creating the task.";
-      toast.error(errorMessage);
+      toast.error("An error occurred while creating the task.");
     }
   };
+
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-8 w-full max-w-lg shadow-lg relative">
-        {/* Nút đóng */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl"
+          aria-label="Close"
         >
           &times;
         </button>
@@ -69,7 +68,7 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
               value={taskId}
               onChange={(e) => setTaskId(e.target.value)}
               className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring focus:border-blue-300"
-              placeholder="Enter task title"
+              placeholder="Enter task ID"
             />
           </div>
 
@@ -105,7 +104,6 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
           </div>
         </div>
 
-        {/* Buttons */}
         <div className="flex justify-end space-x-4 mt-8">
           <button
             onClick={onClose}

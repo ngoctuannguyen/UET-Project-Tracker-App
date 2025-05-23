@@ -13,74 +13,66 @@ const ProjectManagementPage = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const handleRowClick = (projectId) => {
-    const selectedProject = projects.find((project) => project.id === projectId);
-    navigate(`/project/${projectId}`, { state: selectedProject});
+  const fetchProjects = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get("/api/projects", { withCredentials: true });
+
+      const transformedData = response.data.map(project => ({
+        id: project.project_id,
+        name: project.project_name,
+        leader: project.project_leader,
+        dueDate: project.project_due,
+        status: project.project_status,
+        progress: project.project_progress
+      }));
+
+      setProjects(transformedData);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      console.error("Lỗi khi tải dự án:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Fetch projects từ API
   useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const response = await axios.get("/api/projects", { withCredentials: true });
-        
-        // Transform dữ liệu từ API
-        const transformedData = response.data.map(project => ({
-          id: project.project_id,
-          name: project.project_name,
-          leader: project.project_leader,
-          dueDate: project.project_due,
-          status: project.project_status,
-          progress: project.project_progress
-        }));
-        
-        setProjects(transformedData); // 👈 Lưu danh sách vào Redux
-        setError(null);
-      } catch (err) {
-        setError(err.message);
-        console.error("Lỗi khi tải dự án:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchProjects();
   }, []);
 
-  // Xử lý dữ liệu projects
-  const processedProjects = projects.map((project) => {
+  const handleRowClick = (projectId) => {
+    const selectedProject = projects.find((project) => project.id === projectId);
+    navigate(`/project/${projectId}`, { state: selectedProject });
+  };
 
+  const processedProjects = projects.map((project) => {
     let formattedDueDate = "Invalid Date";
 
     if (typeof project.dueDate === "string" && project.dueDate.includes("/")) {
-      // Trường hợp `dueDate` là chuỗi ngày không chuẩn (ví dụ: "31/12/2025")
       const formatDate = (dateString) => {
         const [day, month, year] = dateString.split("/");
         return `${year}-${month}-${day}`;
       };
       formattedDueDate = new Date(formatDate(project.dueDate)).toLocaleDateString("en-US");
     } else if (typeof project.dueDate === "number") {
-      // Trường hợp `dueDate` là timestamp
       formattedDueDate = new Date(project.dueDate).toLocaleDateString("en-US");
     } else if (project.dueDate && project.dueDate._seconds) {
-      // Trường hợp `dueDate` là Firestore timestamp
       formattedDueDate = new Date(
         project.dueDate._seconds * 1000 + project.dueDate._nanoseconds / 1e6
       ).toLocaleDateString("en-US");
     }
-    
-    console.log(formattedDueDate);
+
     return {
       id: project.id,
       name: project.name,
       lead: project.leader,
       progress: project.progress,
       status: project.status,
-      dueDate: formattedDueDate   
+      dueDate: formattedDueDate
     };
   });
 
-  // Tính toán stats
   const sampleStats = {
     complete: processedProjects.filter(project => project.status === "completed").length,
     inProgress: processedProjects.filter(project => project.status === "in progress").length,
@@ -121,10 +113,14 @@ const ProjectManagementPage = () => {
 
       <ProjectsTable projects={processedProjects} onRowClick={handleRowClick} />
 
-      <ProjectCreateOverlay
-        visible={createVisible}
-        onClose={() => setCreateVisible(false)}
-      />
+     <ProjectCreateOverlay
+  visible={createVisible}
+  onClose={() => setCreateVisible(false)}
+  onSuccess={() => {
+    setCreateVisible(false);   // Đóng overlay
+    fetchProjects();           // Load lại project mới
+  }}
+/>
     </main>
   );
 };

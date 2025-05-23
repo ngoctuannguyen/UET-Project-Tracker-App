@@ -1,10 +1,7 @@
-// pages/ProjectProgress.jsx
 import React, { useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
-import axios from "axios";
 import TaskCreateOverlay from "@/components/TaskCreateOverlay";
 import TaskEditOverlay from "@/components/TaskEditOverlay";
-import { toast } from "sonner";
 import { Eye } from "lucide-react";
 
 const ProjectProgress = () => {
@@ -16,7 +13,7 @@ const ProjectProgress = () => {
   const [visibleCount, setVisibleCount] = useState(5);
   const [editTask, setEditTask] = useState(null);
   const [editStatus, setEditStatus] = useState(false);
-  const [viewTask, setViewTask] = useState(null); // State cho overlay xem task
+  const [viewTask, setViewTask] = useState(null);
 
   if (!project) {
     return <div className="p-6 text-red-500">Project not found</div>;
@@ -45,6 +42,20 @@ const ProjectProgress = () => {
     setVisibleCount((prev) => Math.min(prev + 5, filteredTasks.length));
   };
 
+  // Callback after creating a task:
+  const onCreateSuccess = async () => {
+    setCreateVisible(false);
+    await fetchProject();
+    setVisibleCount(5);
+  };
+
+  // Callback after editing a task:
+  const onEditSuccess = async () => {
+    setEditStatus(false);
+    setEditTask(null);
+    await fetchProject();
+  };
+
   return (
     <div className="p-6 flex flex-col h-full">
       {/* Progress Section */}
@@ -54,7 +65,9 @@ const ProjectProgress = () => {
         <div className="bg-white p-6 rounded-lg shadow mb-8">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <p className="font-semibold">Completed {completedTasks}/{totalTasks} tasks</p>
+              <p className="font-semibold">
+                Completed {completedTasks}/{totalTasks} tasks
+              </p>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                 <div
                   className="h-2 rounded-full bg-purple-500"
@@ -81,21 +94,31 @@ const ProjectProgress = () => {
 
         <div className="flex space-x-4 mb-6">
           <button
-            onClick={() => { setFilter("not done"); setVisibleCount(5); }}
-            className={`px-6 py-2 rounded-full ${filter === "not done" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+            onClick={() => {
+              setFilter("not done");
+              setVisibleCount(5);
+            }}
+            className={`px-6 py-2 rounded-full ${
+              filter === "not done" ? "bg-blue-500 text-white" : "bg-gray-200"
+            }`}
           >
             Not done
           </button>
           <button
-            onClick={() => { setFilter("done"); setVisibleCount(5); }}
-            className={`px-6 py-2 rounded-full ${filter === "done" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+            onClick={() => {
+              setFilter("done");
+              setVisibleCount(5);
+            }}
+            className={`px-6 py-2 rounded-full ${
+              filter === "done" ? "bg-blue-500 text-white" : "bg-gray-200"
+            }`}
           >
             Done
           </button>
         </div>
       </div>
 
-      {/* Task List (Scroll riêng) */}
+      {/* Task List */}
       <div className="flex-1 overflow-y-auto space-y-4 pr-2">
         {filteredTasks.slice(0, visibleCount).map((task) => (
           <div
@@ -127,16 +150,18 @@ const ProjectProgress = () => {
                   {task.status === "done" ? "Done" : "Not Done"}
                 </span>
               </div>
-              {/* Nút xem chi tiết */}
               <button
                 onClick={() => setViewTask(task)}
                 className="text-gray-400 hover:text-blue-600 transition"
-                title="Xem chi tiết task"
+                title="View task details"
               >
                 <Eye className="h-5 w-5" />
               </button>
               <button
-                onClick={() => { setEditTask(task); setEditStatus(true); }}
+                onClick={() => {
+                  setEditTask(task);
+                  setEditStatus(true);
+                }}
                 className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity"
                 title="Edit task"
               >
@@ -153,7 +178,6 @@ const ProjectProgress = () => {
           </div>
         ))}
 
-        {/* See More Button */}
         {visibleCount < filteredTasks.length && (
           <div className="flex justify-center mt-6">
             <button
@@ -166,10 +190,9 @@ const ProjectProgress = () => {
         )}
       </div>
 
-      {/* Overlay xem chi tiết task */}
+      {/* View Task Overlay */}
       {viewTask && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
-          {/* Lớp phủ làm mờ nền */}
           <div className="absolute inset-0 backdrop-blur-sm bg-black/10"></div>
           <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md relative z-10">
             <button
@@ -209,8 +232,12 @@ const ProjectProgress = () => {
         <TaskEditOverlay
           task={editTask}
           projectId={project.project_id}
-          onClose={() => setEditStatus(false)}
+          onClose={() => {
+            setEditStatus(false);
+            setEditTask(null);
+          }}
           fetchProject={fetchProject}
+          onSuccess={onEditSuccess} // New callback for after edit success
         />
       )}
 
@@ -219,6 +246,7 @@ const ProjectProgress = () => {
         <TaskCreateOverlay
           onClose={() => setCreateVisible(false)}
           projectId={project.project_id}
+          onSuccess={onCreateSuccess} // Refresh after creating task
         />
       )}
     </div>
