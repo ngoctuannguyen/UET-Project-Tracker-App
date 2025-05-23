@@ -489,3 +489,22 @@ exports.getUserByUserID = async (req, res) => {
     });
   }
 };
+
+exports.getAllUsers = async (req, res) => {
+  try {
+    const userDocRef = firestoreService.collection("user_service");
+    const userDocSnapshot = await userDocRef.get();
+
+    const userData = userDocSnapshot.docs.map((doc) => doc.data());
+
+    return res.status(200).json({ data: userData });
+
+  } catch (error) {
+    console.error(`Lỗi lấy thông tin người dùng :`, error);
+
+    return res.status(500).json({
+      error: "Đã xảy ra lỗi khi lấy thông tin người dùng.",
+      details: error.message || error.toString(),
+    });
+  }
+};
