@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
-import { autoBatchEnhancer } from '@reduxjs/toolkit';
 import { useAuth } from '@/context/AuthContext';
 
-const ProjectCreateOverlay = ({ visible, onClose }) => {
+const ProjectCreateOverlay = ({ visible, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     project_name: '',
     client: '',
@@ -13,16 +12,17 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
   });
   const [status, setStatus] = useState('idle');
   const [errors, setErrors] = useState({});
-  const { auth, login } = useAuth();
+  const { auth } = useAuth();
 
+  // Reset state when overlay closes
   useEffect(() => {
     if (!visible) {
       setStatus('idle');
       setFormData({
         project_name: '',
         client: '',
-        project_leader: '',
         project_due: '',
+        project_description: ''
       });
       setErrors({});
     }
@@ -33,7 +33,7 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
     if (!formData.project_name.trim()) newErrors.project_name = 'Project name is required';
     if (!formData.client.trim()) newErrors.client = 'Client is required';
     if (!formData.project_due) newErrors.project_due = 'Due date is required';
-    if (!formData.project_description) newErrors.project_description = 'Description is required';
+    if (!formData.project_description.trim()) newErrors.project_description = 'Description is required';
     return newErrors;
   };
 
@@ -46,22 +46,34 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateForm();
-    if (Object.keys(validationErrors).length > 0) return setErrors(validationErrors);
-    console.log(auth.userData.user_id);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
     setStatus('loading');
     try {
       await axios.post('/api/projects', {
         ...formData,
         project_leader: auth.userData.user_id,
-        project_due: new Date(formData.project_due).toLocaleDateString() // Convert to ISO format
+        project_due: new Date(formData.project_due).toISOString()
       }, {
-        headers: { Authorization: `Bearer ${auth.idToken}`, "Content-Type": "application/json" }
-      }); 
+        headers: {
+          Authorization: `Bearer ${auth.idToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
       setStatus('success');
-      setTimeout(onClose, 1500);
+
+      setTimeout(() => {
+        onSuccess?.();  // Callback from parent
+      }, 500);
     } catch (error) {
       setStatus('error');
-      setErrors({ general: error.response?.data?.message || 'Failed to create project' });
+      setErrors({
+        general: error.response?.data?.message || 'Failed to create project'
+      });
     }
   };
 
@@ -72,7 +84,7 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
       <div className="bg-white w-full max-w-md rounded-xl shadow-xl relative">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-500 hover:text-red-600 transition-colors"
+          className="absolute top-4 right-4 text-gray-500 hover:text-red-600"
         >
           <X size={24} />
         </button>
@@ -101,8 +113,8 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
                   value={formData.project_name}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 rounded-lg border focus:ring-2 ${
-                    errors.project_name 
-                      ? 'border-red-500 focus:ring-red-200' 
+                    errors.project_name
+                      ? 'border-red-500 focus:ring-red-200'
                       : 'border-gray-300 focus:ring-blue-200'
                   }`}
                   placeholder="Enter project name"
@@ -123,8 +135,8 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
                   value={formData.client}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 rounded-lg border focus:ring-2 ${
-                    errors.client 
-                      ? 'border-red-500 focus:ring-red-200' 
+                    errors.client
+                      ? 'border-red-500 focus:ring-red-200'
                       : 'border-gray-300 focus:ring-blue-200'
                   }`}
                   placeholder="Enter client name"
@@ -146,8 +158,8 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
                   onChange={handleChange}
                   min={new Date().toISOString().split('T')[0]}
                   className={`w-full px-4 py-2 rounded-lg border focus:ring-2 ${
-                    errors.project_due 
-                      ? 'border-red-500 focus:ring-red-200' 
+                    errors.project_due
+                      ? 'border-red-500 focus:ring-red-200'
                       : 'border-gray-300 focus:ring-blue-200'
                   }`}
                 />
@@ -156,37 +168,46 @@ const ProjectCreateOverlay = ({ visible, onClose }) => {
                 )}
               </div>
 
+              {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                  Description *
                 </label>
                 <textarea
                   name="project_description"
                   value={formData.project_description}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-200"
+                  className={`w-full px-4 py-2 rounded-lg border focus:ring-2 ${
+                    errors.project_description
+                      ? 'border-red-500 focus:ring-red-200'
+                      : 'border-gray-300 focus:ring-blue-200'
+                  }`}
                   rows="4"
+                  placeholder="Describe the project"
                 />
+                {errors.project_description && (
+                  <p className="text-red-500 text-sm mt-1">{errors.project_description}</p>
+                )}
               </div>
 
+              {/* General Error */}
               {errors.general && (
-                <div className="text-red-500 text-sm text-center">
-                  {errors.general}
-                </div>
+                <div className="text-red-500 text-sm text-center">{errors.general}</div>
               )}
 
+              {/* Buttons */}
               <div className="flex justify-end gap-3 mt-6">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-5 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                  className="px-5 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
                   disabled={status === 'loading'}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                  className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center disabled:opacity-50"
                   disabled={status === 'loading'}
                 >
                   {status === 'loading' ? (
