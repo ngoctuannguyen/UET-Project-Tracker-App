@@ -25,12 +25,12 @@ module.exports = (sequelize, DataTypes) => {
       //   type: DataTypes.INTEGER,
       // },
       created_at: {
-        type: DataTypes.DATEONLY,
+        type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
       project_due: {
-        type: DataTypes.DATEONLY,
+        type: DataTypes.DATE,
         allowNull: false,
       },
     },
