@@ -5,6 +5,7 @@ const UserFormOverlay = ({ user, onClose, onSave }) => {
     name: "",
     email: "",
     role: "user",
+    gender: "male",
   });
 
   useEffect(() => {
@@ -50,6 +51,20 @@ const UserFormOverlay = ({ user, onClose, onSave }) => {
               required
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Role</label>
+            <select
+              name="gender"
+              value={form.gender}
+              onChange={handleChange}
+              className="w-full border px-3 py-2 rounded"
+            >
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+
           <div>
             <label className="block text-sm font-medium mb-1">Role</label>
             <select

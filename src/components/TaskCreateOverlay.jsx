@@ -28,6 +28,7 @@ const TaskCreateOverlay = ({ onClose, projectId }) => {
   
       // Send the POST request with the request body
       await axios.post(`/api/projects/${projectId}`, requestBody)
+      await axios.get(`/api/projects/`, { withCredentials: true});
       toast.success("Task created successfully!");
       onClose(); // Close the overlay after successful creation
     } catch (error) {

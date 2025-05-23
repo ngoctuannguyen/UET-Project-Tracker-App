@@ -18,9 +18,7 @@ const ProjectManagementPage = () => {
     navigate(`/project/${projectId}`, { state: selectedProject});
   };
 
-  // Fetch projects từ API
-  useEffect(() => {
-    const fetchProjects = async () => {
+  const fetchProjects = async () => {
       try {
         const response = await axios.get("/api/projects", { withCredentials: true });
         
@@ -34,7 +32,7 @@ const ProjectManagementPage = () => {
           progress: project.project_progress
         }));
         
-        setProjects(transformedData); // 👈 Lưu danh sách vào Redux
+        setProjects(transformedData); 
         setError(null);
       } catch (err) {
         setError(err.message);
@@ -44,6 +42,8 @@ const ProjectManagementPage = () => {
       }
     };
 
+  // Fetch projects từ API
+  useEffect(() => {
     fetchProjects();
   }, []);
 
@@ -123,7 +123,10 @@ const ProjectManagementPage = () => {
 
       <ProjectCreateOverlay
         visible={createVisible}
-        onClose={() => setCreateVisible(false)}
+        onClose={() => {setCreateVisible(false)}}
+        onCreated={() => {
+          fetchProjects(); // gọi lại sau khi project được tạo
+        }}
       />
     </main>
   );
