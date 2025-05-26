@@ -13,8 +13,8 @@ const {
   Product,
   Component,
   Component_Employee,
-  Report
-} = require('./models');
+  Report,
+} = require("./models");
 console.log({ Product, Component, Component_Employee, Report });
 
 initializeDatabase()
@@ -22,11 +22,11 @@ initializeDatabase()
     return sequelize.sync();
   })
   .then(() => {
-    console.log('Database synced with models!');
+    console.log("Database synced with models!");
     // Start your server or further initialization here...
   })
   .catch((err) => {
-    console.error('Error initializing database:', err);
+    console.error("Error initializing database:", err);
   });
 
 // Middleware
@@ -37,26 +37,26 @@ app.use(express.urlencoded({ extended: true }));
 // Request logging
 
 // Static folder for uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Routes
-app.use('/api', reportRoutes);
+app.use("/api", reportRoutes);
 
 // Home route
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to UET-Project-Tracker-App API' });
+app.get("/", (req, res) => {
+  res.json({ message: "Welcome to UET-Project-Tracker-App API" });
 });
 
 // Error handling middleware
 app.use((req, res, next) => {
-  res.status(404).json({ message: 'Route not found' });
+  res.status(404).json({ message: "Route not found" });
 });
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
-    message: 'An error occurred',
-    error: process.env.NODE_ENV === 'production' ? {} : err
+    message: "An error occurred",
+    error: process.env.NODE_ENV === "production" ? {} : err,
   });
 });
 

@@ -3,12 +3,13 @@ const path = require("path");
 const fs = require("fs");
 // Điều chỉnh dòng import để phù hợp với các hàm được export từ service và thêm hàm mới
 const {
-  submitReport,
+  // submitReport, // Nếu không dùng trực tiếp nữa thì có thể bỏ
   scanBarcodeFromImage,
   deleteReport,
   deleteReportbyComponentId,
   getReportsByComponentId,
   getComponentDetailsByBarcode,
+  submitReportAndUpdateProjectService, // Sử dụng hàm này
 } = require("../services/reportService");
 
 // Configure multer for file uploads
@@ -152,35 +153,39 @@ const submitReportNormal = async (req, res) => {
     );
     const {
       reportText,
-      imagePath, // Vẫn giữ lại nếu bạn muốn lưu đường dẫn ảnh gốc
-      componentCode, // Barcode
-      userId, // <<< THÊM: Nhận userId từ client
+      componentCode,
+      userId,
+      newStatusForComponent, // Client có thể gửi trạng thái này nếu muốn ghi đè
     } = req.body;
 
     if (!reportText || !componentCode || !userId) {
-      // <<< THÊM: Kiểm tra userId
       return res.status(400).json({
         success: false,
         message: "Report text, component code, and user ID are required.",
       });
     }
 
-    // Gọi service để lưu report, truyền thêm userId
-    const reportResult = await submitReport({
+    // Gọi service để lưu report, cập nhật component và publish sự kiện
+    const reportResult = await submitReportAndUpdateProjectService({
       reportText,
-      imagePath, // Có thể là null nếu không có ảnh kèm theo báo cáo này
       componentCode,
-      employeeId: userId, // <<< THAY ĐỔI: Truyền userId làm employeeId
+      employeeId: userId,
+      newComponentStatus: newStatusForComponent, // Truyền trạng thái này (có thể undefined)
     });
 
     if (reportResult.success) {
       res.status(201).json({
         success: true,
-        message: "Report submitted successfully!",
+        message: "Report submitted and project service notified!",
         report: reportResult.report,
+        component: reportResult.component,
       });
     } else {
-      res.status(500).json({ success: false, message: reportResult.message });
+      // reportResult.message sẽ chứa thông báo lỗi từ service
+      res.status(500).json({
+        success: false,
+        message: reportResult.message || "Failed to submit report.",
+      });
     }
   } catch (error) {
     console.error("Error submitting normal report:", error);
@@ -299,5 +304,5 @@ module.exports = {
   submitReportNormal,
   upload,
   getComponentDetails,
-  scanAndGetDetails, // <<< THÊM: Export controller mới
+  scanAndGetDetails,
 };
