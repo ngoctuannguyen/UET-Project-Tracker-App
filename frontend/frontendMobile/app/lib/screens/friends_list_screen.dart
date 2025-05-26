@@ -188,7 +188,7 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
       //     ),
       //   );
       //   break;
-      case 4:
+      case 3:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -310,12 +310,12 @@ class _FriendsListScreenState extends State<FriendsListScreen> {
             activeIcon: Icon(Icons.camera_alt),
             label: 'Camera',
           ),
-          BottomNavigationBarItem(
-            // ChatBot item
-            icon: Icon(Icons.smart_toy_outlined),
-            activeIcon: Icon(Icons.smart_toy),
-            label: 'Chat Bot',
-          ),
+          // BottomNavigationBarItem(
+          //   // ChatBot item
+          //   icon: Icon(Icons.smart_toy_outlined),
+          //   activeIcon: Icon(Icons.smart_toy),
+          //   label: 'Chat Bot',
+          // ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),
             activeIcon: Icon(Icons.settings),

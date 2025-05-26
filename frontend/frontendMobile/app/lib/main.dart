@@ -24,6 +24,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
+      debugShowCheckedModeBanner: false,
       onGenerateRoute: (settings) {
         // Kiểm tra xem route có phải là reset-password không
         // settings.name sẽ là '/reset-password?mode=resetPassword&oobCode=XYZ...' khi click link

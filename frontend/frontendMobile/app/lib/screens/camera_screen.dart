@@ -9,7 +9,7 @@ import 'package:path/path.dart' show join;
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/friends_list_screen.dart';
 import 'package:app/screens/image_search_result_screen.dart';
-import 'package:app/screens/chatbot_screen.dart';
+// import 'package:app/screens/chatbot_screen.dart';
 import 'package:app/screens/settings_screen.dart';
 import 'package:app/models/user_model.dart'; // <<< THÊM: Import UserModel
 import 'package:image/image.dart' as img; // Import thư viện image
@@ -347,16 +347,16 @@ class _CameraScreenState extends State<CameraScreen> {
         break;
       case 2: // Camera (đang ở đây)
         break;
-      case 3: // Chat Bot
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) => ChatbotScreen(currentUser: widget.currentUser!),
-          ),
-        );
-        break;
-      case 4: // Settings
+      // case 3: // Chat Bot
+      //   Navigator.pushReplacement(
+      //     context,
+      //     MaterialPageRoute(
+      //       builder:
+      //           (context) => ChatbotScreen(currentUser: widget.currentUser!),
+      //     ),
+      //   );
+      //   break;
+      case 3: // Settings
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -465,11 +465,11 @@ class _CameraScreenState extends State<CameraScreen> {
             activeIcon: Icon(Icons.camera_alt),
             label: 'Camera',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.smart_toy_outlined),
-            activeIcon: Icon(Icons.smart_toy),
-            label: 'Chatbot',
-          ),
+          // BottomNavigationBarItem(
+          //   icon: Icon(Icons.smart_toy_outlined),
+          //   activeIcon: Icon(Icons.smart_toy),
+          //   label: 'Chatbot',
+          // ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),
             activeIcon: Icon(Icons.settings),

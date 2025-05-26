@@ -20,7 +20,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final int _selectedIndex = 4;
+  final int _selectedIndex = 3;
   final UserService _userService = UserService();
   // <<< SỬA: Dùng state để lưu user, khởi tạo từ widget >>>
   late UserModel _currentUserData;
@@ -113,20 +113,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
         break;
-      case 3:
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            // <<< SỬA: Truyền _currentUserData >>>
-            pageBuilder:
-                (_, __, ___) => ChatbotScreen(currentUser: _currentUserData),
-            transitionsBuilder:
-                (_, a, __, c) => FadeTransition(opacity: a, child: c),
-            settings: const RouteSettings(name: '/chatbot'), // Thêm tên route
-          ),
-        );
-        break;
-      case 4: // Đang ở Settings
+      // case 3:
+      //   Navigator.pushReplacement(
+      //     context,
+      //     PageRouteBuilder(
+      //       // <<< SỬA: Truyền _currentUserData >>>
+      //       pageBuilder:
+      //           (_, __, ___) => ChatbotScreen(currentUser: _currentUserData),
+      //       transitionsBuilder:
+      //           (_, a, __, c) => FadeTransition(opacity: a, child: c),
+      //       settings: const RouteSettings(name: '/chatbot'), // Thêm tên route
+      //     ),
+      //   );
+      //   break;
+      case 3: // Đang ở Settings
         break;
     }
   }
@@ -370,11 +370,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             activeIcon: Icon(Icons.camera_alt),
             label: 'Camera',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.smart_toy_outlined),
-            activeIcon: Icon(Icons.smart_toy),
-            label: 'Chatbot',
-          ),
+          // BottomNavigationBarItem(
+          //   icon: Icon(Icons.smart_toy_outlined),
+          //   activeIcon: Icon(Icons.smart_toy),
+          //   label: 'Chatbot',
+          // ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),
             activeIcon: Icon(Icons.settings),

@@ -204,7 +204,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const String defaultManagerName = "Người quản lý"; // Đổi tên mặc định
+    const String defaultManagerName = "Người báo cáo"; // Đổi tên mặc định
 
     return Scaffold(
       appBar: AppBar(
