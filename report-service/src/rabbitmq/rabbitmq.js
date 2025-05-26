@@ -1,123 +1,121 @@
-const amqp = require("amqplib");
+const amqp = require('amqplib');
+const axios = require('axios');
+const retry = require('async-retry');
+const {
+    addComponent,
+    deleteComponent,
+    deleteProduct,
+    addProduct,
+    updateProgress,
+    updateStatus,
+    updateComponent
+} = require('../services/productAndComponentService');
 
-const createEvent = (eventType, payload) => ({
-  event_type: eventType,
-  timestamp: new Date().toISOString(),
-  payload,
-});
 
-class RabbitMQService {
-  constructor() {
-    this.connection = null;
-    this.channel = null;
-    this.exchange = "projects";
-    this.connectionUrl =
-      "amqps://vascfdnt:jtd5jMuRX4CH6Nt6L-xbquo8NczYn-Mk@armadillo.rmq.cloudamqp.com/vascfdnt";
-  }
-
-  async #ensureConnected() {
-    // Phương thức private để kết nối nếu cần
-    if (!this.channel || !this.connection) {
-      try {
-        this.connection = await amqp.connect(this.connectionUrl);
-        this.channel = await this.connection.createChannel();
-        await this.channel.assertExchange(this.exchange, "topic", {
-          durable: true,
-        });
-        console.log(
-          "[Report Service] Connected to RabbitMQ and asserted exchange."
-        );
-      } catch (error) {
-        console.error("[Report Service] RabbitMQ connection error:", error);
-        // Cân nhắc retry hoặc throw lỗi để được xử lý ở nơi gọi
+class RabbitMQConsumer {
+    constructor() {
+        this.connection = null;
         this.channel = null;
-        this.connection = null; // Reset
-        throw error; // Ném lỗi ra để nơi gọi xử lý retry
-      }
+        this.exchange = 'projects';
+        this.connectionUrl = 'amqps://vascfdnt:jtd5jMuRX4CH6Nt6L-xbquo8NczYn-Mk@armadillo.rmq.cloudamqp.com/vascfdnt';
+
+        this.reportServiceBaseURL = 'http://localhost:3004/api';
+        this.routingKeys = [
+            'event.project.created',
+            'event.project.deleted',
+            'event.project.updated',
+            'event.project.task.created',
+            'event.project.task.updated',
+            'event.project.task.removed',
+            'event.project.employee.added',
+            'event.project.employee.removed',
+            'event.project.leader.updated'
+        ];
     }
-  }
 
-  async publishEvent(routingKey, message) {
-    try {
-      await this.#ensureConnected();
-      const bufferedMessage = Buffer.from(JSON.stringify(message));
-      this.channel.publish(this.exchange, routingKey, bufferedMessage, {
-        persistent: true,
-      });
-      console.log(
-        `[Report Service] Event published to ${routingKey}:`,
-        message
-      );
-    } catch (error) {
-      console.error("[Report Service] Error publishing event:", error);
-      // Xử lý lỗi, có thể thử kết nối lại và publish lại
-      throw error;
-    }
-  }
+    async connect() {
+        try {
+            this.connection = await amqp.connect(this.connectionUrl);
+            this.channel = await this.connection.createChannel();
 
-  async connect(onMessage) {
-    try {
-      this.connection = await amqp.connect(this.connectionUrl);
-      this.channel = await this.connection.createChannel();
+            await this.channel.assertExchange(this.exchange, 'topic', { durable: true });
 
-      await this.channel.assertExchange(this.exchange, "topic", {
-        durable: true,
-      });
+            const queue = await this.channel.assertQueue('report-service', { durable: true });
 
-      const q = await this.channel.assertQueue("", { exclusive: true });
+            for (const key of this.routingKeys) {
+                await this.channel.bindQueue(queue.queue, this.exchange, key);
+            }
 
-      // Bind các routing keys liên quan đến project
-      await this.channel.bindQueue(
-        q.queue,
-        this.exchange,
-        "event.project.created"
-      );
-      await this.channel.bindQueue(
-        q.queue,
-        this.exchange,
-        "event.project.deleted"
-      );
-      // Bind các routing keys liên quan đến task
-      await this.channel.bindQueue(
-        q.queue,
-        this.exchange,
-        "event.project.task.created"
-      );
-      await this.channel.bindQueue(
-        q.queue,
-        this.exchange,
-        "event.project.task.removed"
-      );
-      await this.channel.bindQueue(
-        q.queue,
-        this.exchange,
-        "event.project.task.updated"
-      );
+            this.channel.consume(queue.queue, async (msg) => {
+                if (!msg) return;
 
-      console.log("[*] Waiting for task events in Report Service...");
+                const event = JSON.parse(msg.content.toString());
+                const routingKey = msg.fields.routingKey;
 
-      this.channel.consume(
-        q.queue,
-        (msg) => {
-          if (msg.content) {
-            const data = JSON.parse(msg.content.toString());
-            const routingKey = msg.fields.routingKey;
+                console.log(` [x] Received '${routingKey}'`);
 
-            console.log(` [x] Received '${routingKey}':`, data);
+                try {
+                    await this.handleEvent(routingKey, event);
+                    this.channel.ack(msg);
+                } catch (error) {
+                    console.error('Error handling event:', error.message);
+                    this.channel.nack(msg, false, false); // Không retry nữa
+                }
+            });
 
-            // Gọi xử lý tùy theo loại sự kiện
-            onMessage(routingKey, data);
-          }
-        },
-        {
-          noAck: true,
+            console.log('[*] Report service is consuming project events...');
+        } catch (err) {
+            console.error('RabbitMQ connection error:', err.message);
+            setTimeout(() => this.connect(), 5000); // Thử lại sau 5s
         }
-      );
-    } catch (error) {
-      console.error("RabbitMQ consumer error:", error);
-      setTimeout(() => this.connect(onMessage), 5000);
     }
-  }
+
+    async handleEvent(routingKey, event) {
+        await retry(async () => {
+            switch (routingKey) {
+                case 'event.project.created': {
+                    const { project, uid } = event.payload;
+                    await addProduct(project);
+                    break;
+                }
+                case 'event.project.updated':
+                case 'event.project.task.created': {
+                    console.log('Received event:', JSON.stringify(event, null, 2));
+                    const { task, projectId } = event.payload;
+                    if (!task || !projectId) {
+                        console.error('Missing data in event:', event);
+                        return;
+                    }
+                    await addComponent(task, projectId);
+                    break;
+                }
+                case 'event.project.task.updated': {
+                    const { projectId, taskId, data } = event.payload; 
+                    try {
+                        const res = await updateComponent(projectId, taskId, data);
+                        console.log(res);
+                    } catch (error) {
+                        throw error;
+                    }
+                    break;
+                }
+                case 'event.project.task.removed':
+                    const { projectId, taskId, data } = event.payload;
+                    console.log(event.payload);
+                    await deleteComponent(projectId, taskId, data);
+                    break;
+                default:
+                    console.log('Unknown routing key:', routingKey);
+                    break;
+            }
+        }, {
+            retries: 3,
+            minTimeout: 1000,
+            onRetry: (err, attempt) => {
+                console.warn(`Retry ${attempt} - ${routingKey}: ${err.message}`);
+            }
+        });
+    }
 }
 
-module.exports = { rabbitMQService: new RabbitMQService(), createEvent }; // Export instance và helper
+module.exports = new RabbitMQConsumer();
