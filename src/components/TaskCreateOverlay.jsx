@@ -23,9 +23,9 @@ const TaskCreateOverlay = ({ onClose, projectId, onSuccess }) => {
         employee_id: assignee,
         deadline: dueDate,
         start_date: startDate,
-      };
-
-      await axios.post(`/api/projects/${projectId}`, requestBody);
+      };  
+      // Send the POST request with the request body
+      await axios.post(`/api/projects/${projectId}`, requestBody)
       toast.success("Task created successfully!");
       
       onSuccess?.();  // Call onSuccess callback if provided

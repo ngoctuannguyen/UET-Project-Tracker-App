@@ -16,7 +16,7 @@ const TopBar = ({ fetchSuggestions, projects }) => {
 
   const fuse = React.useMemo(() => new Fuse(projects || [], {
     keys: ["project_name"],
-    threshold: 0.4, // Độ chính xác, càng nhỏ càng khắt khe
+    threshold: 0.4, 
   }), [projects]);
 
   // Debounce search requests
