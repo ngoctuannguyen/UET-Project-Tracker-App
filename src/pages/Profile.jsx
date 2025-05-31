@@ -32,7 +32,7 @@ const Profile = () => {
       console.log(updatedUserData);
       
       try {
-        await axios.put("/auth/user/profile-update", updatedUserData, {
+        await axios.put("http://localhost:2000/users/user/profile-update", updatedUserData, {
           headers: {
             Authorization: `Bearer ${auth.idToken}`,
             "Content-Type": "application/json"

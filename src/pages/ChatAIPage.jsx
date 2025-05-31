@@ -35,7 +35,7 @@ const AIChatPage = () => {
   useEffect(() => {
     const fetchChats = async () => {
       try {
-        const res = await axios.get("http://localhost:8000/chatbot_service");
+        const res = await axios.get("http://localhost:2000/bots/chatbot_service");
 
         const conversations = res.data;
   
@@ -45,7 +45,7 @@ const AIChatPage = () => {
   
           // Optionally fetch messages for the first chat:
           const messagesRes = await axios.get(
-            `http://localhost:8000/chatbot_service/${conversations[0].id}/messages`
+            `http://localhost:2000/bots/chatbot_service/${conversations[0].id}/messages`
           );
           setMessages(messagesRes.data || []);
         }
@@ -60,7 +60,7 @@ const AIChatPage = () => {
     setSelectedChat(chat);
     try {
       const res = await axios.get(
-        `http://localhost:8000/chatbot_service/${chat.id}/messages`
+        `http://localhost:2000/bots/chatbot_service/${chat.id}/messages`
       );
       setMessages(res.data || []);
     } catch (err) {
@@ -78,7 +78,7 @@ const AIChatPage = () => {
     setMessages((prev) => [...prev, userMessage]);
   
     try {
-      const res = await axios.post("http://localhost:8000/question", {
+      const res = await axios.post("http://127.0.0.1:8000/question", {
         query: input,
         session_id: selectedChat.id.toString(), // dùng session_id
       });
@@ -106,7 +106,7 @@ const AIChatPage = () => {
       const formData = new FormData();
       formData.append("file", file); // Key "file" khớp với Flask
   
-      axios.post("http://localhost:8000/upload_pdf", formData, {
+      axios.post("http://localhost:2000/bots/upload_pdf", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },

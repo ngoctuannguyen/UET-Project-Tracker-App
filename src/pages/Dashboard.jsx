@@ -15,7 +15,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await axios.get("/api/projects", { withCredentials: true });
+        const response = await axios.get("http://localhost:2000/project/projects", { withCredentials: true });
         
         // Transform dữ liệu từ API
         const transformedData = response.data.map(project => ({

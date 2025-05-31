@@ -6,7 +6,7 @@ import GroupChatInfo from "../components/GroupChatInfo";
 import { MentionsInput, Mention } from "react-mentions";
 
 // --- URL Configuration ---
-const CHAT_SERVICE_API_URL = "http://localhost:3002/api";
+const CHAT_SERVICE_API_URL = "http://localhost:2000/chat";
 const SOCKET_SERVER_URL = "http://localhost:3002"; 
 
 const ChatGroupPage = () => {

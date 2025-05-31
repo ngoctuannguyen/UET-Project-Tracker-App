@@ -21,7 +21,7 @@ const ProjectProgress = () => {
   if (!project) {
     return <div className="p-6 text-red-500">Project not found</div>;
   }
-
+  
   const totalTasks = project.project_task.length;
   const completedTasks = project.project_task.filter((t) => t.status === "done").length;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;

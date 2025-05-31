@@ -19,7 +19,7 @@ const NotificationPage = () => {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const response = await axios.get("http://localhost:3003/notifications");
+        const response = await axios.get("http://localhost:2000/notification/notifications");
         setNotifications(response.data.data);
         setLoading(false);
       } catch (error) {
