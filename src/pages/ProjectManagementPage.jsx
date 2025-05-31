@@ -16,7 +16,7 @@ const ProjectManagementPage = () => {
   const fetchProjects = async () => {
     setLoading(true);
     try {
-      const response = await axios.get("/api/projects", { withCredentials: true });
+      const response = await axios.get("http://localhost:2000/project/projects", { withCredentials: true });
 
       const transformedData = response.data.map(project => ({
         id: project.project_id,

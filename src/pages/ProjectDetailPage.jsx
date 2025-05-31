@@ -12,7 +12,7 @@ const ProjectDetailPage = () => {
 
   const fetchProject = async () => {
     try {
-      const response = await axios.get(`/api/projects/${id}`);
+      const response = await axios.get(`http://localhost:2000/project/projects/${id}`);
       setProject(response.data);
     } catch (error) {
       console.error("Error fetching project:", error);
