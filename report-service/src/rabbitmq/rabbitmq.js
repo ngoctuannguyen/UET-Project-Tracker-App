@@ -105,7 +105,8 @@ class RabbitMQConsumer {
                     await deleteComponent(projectId, taskId, data);
                     break;
                 default:
-                    throw new Error(`Unhandled routing key: ${routingKey}`);
+                    console.log('Unknown routing key:', routingKey);
+                    break;
             }
         }, {
             retries: 3,

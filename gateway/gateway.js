@@ -11,7 +11,8 @@ app.use(helmet());
 app.use(cors({
     origin: 'http://localhost:5173',
     credentials: true, // cần nếu dùng withCredentials
-}));app.use(express.json());
+}));
+app.use(express.json());
 
 // Rate limiter
 const limiter = rateLimit({
