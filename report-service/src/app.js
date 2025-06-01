@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const cors = require("cors");
 const reportRoutes = require("./routers/reportRoutes.js");
+const projectRoutes = require("./routers/projectRoutes.js");
 
 // rabbitMQService giờ đây là instance của RabbitMQService đã hợp nhất
 // createEvent cũng được export từ rabbitmq.js
@@ -59,6 +60,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Routes
 app.use("/api", reportRoutes); // reportRoutes sẽ sử dụng rabbitMQService.publishEvent
+app.use("/api/projects", projectRoutes);
 
 // Home route
 app.get("/", (req, res) => {

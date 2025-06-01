@@ -101,7 +101,8 @@ exports.loginUser = async (req, res) => {
         `Không tìm thấy dữ liệu người dùng trong Firestore cho UID: ${uid}.`
       );
       return res.status(404).json({
-        error: "Không tìm thấy dữ liệu người dùng. Vui lòng liên hệ quản trị viên.",
+        error:
+          "Không tìm thấy dữ liệu người dùng. Vui lòng liên hệ quản trị viên.",
       });
     }
 
@@ -168,10 +169,8 @@ exports.getUserProfile = async (req, res) => {
 };
 
 exports.updateUserProfile = async (req, res) => {
-
   try {
-
-    let idToken = req.cookies.idToken || req.headers.authorization; 
+    let idToken = req.cookies.idToken || req.headers.authorization;
     console.log(idToken);
     idToken = idToken?.startsWith("Bearer ") ? idToken.split(" ")[1] : idToken;
     const { full_name, birthday } = req.body;
@@ -181,12 +180,12 @@ exports.updateUserProfile = async (req, res) => {
     // Xác thực token với Firebase để lấy uid
     const decodedToken = await axios.post(
       `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.FIREBASE_API_KEY}`,
-      { idToken },
+      { idToken }
     );
     const user = decodedToken.data.users[0];
     const uid = user.localId || user.userId || user.uid;
     // Cập nhật thông tin trên Firestore (nếu bạn lưu thêm thông tin ở đây)
-    const userDocRef = firestoreService.collection("user_service").doc(uid);  
+    const userDocRef = firestoreService.collection("user_service").doc(uid);
     await userDocRef.set(
       { full_name: full_name, birthday: birthday },
       { merge: true }
@@ -202,7 +201,7 @@ exports.updateUserProfile = async (req, res) => {
         full_name: updatedUser.full_name,
         gender: updatedUser.gender,
         role: updatedUser.role,
-        birthday: updatedUser.birthday
+        birthday: updatedUser.birthday,
       },
     });
   } catch (error) {
@@ -435,9 +434,11 @@ exports.getUserByUid = async (req, res) => {
   if (!uid) {
     return res.status(400).json({ error: "UID người dùng là bắt buộc." });
   }
-  
+
   try {
-    const userDocRef = firestoreService.collection("user_service").where("user_id", "==", uid);
+    const userDocRef = firestoreService
+      .collection("user_service")
+      .where("user_id", "==", uid);
     const userDoc = await userDocRef.get();
 
     if (userDoc.empty) {
@@ -457,17 +458,93 @@ exports.getUserByUid = async (req, res) => {
       .json({ error: "Đã xảy ra lỗi khi lấy thông tin người dùng." });
   }
 };
+// exports.getUserByUid = async (req, res) => {
+//   const { uid } = req.params;
+
+//   if (!uid) {
+//     return res.status(400).json({ error: "UID người dùng là bắt buộc." });
+//   }
+
+//   try {
+//     const userDocRef = firestoreService.collection("user_service").doc(uid);
+//     const userDoc = await userDocRef.get();
+
+//     if (!userDoc.exists) {
+//       // Thử lấy thông tin từ Firebase Auth nếu không có trong Firestore
+//       try {
+//         const firebaseUser = await admin.auth().getUser(uid);
+//         return res.status(200).json({
+//           user: {
+//             uid: firebaseUser.uid, // Auth UID
+//             docId: firebaseUser.uid, // Để nhất quán với client
+//             email: firebaseUser.email,
+//             fullName: firebaseUser.displayName || firebaseUser.email, // Sử dụng displayName làm fullName fallback
+//             // photoURL: firebaseUser.photoURL,
+//             // Các trường này không có trong Firebase Auth, trả về null hoặc bỏ qua
+//             role: null,
+//             user_id: null,
+//             firestoreDataMissing: true, // Cờ báo thiếu dữ liệu từ Firestore
+//           },
+//         });
+//       } catch (authError) {
+//         // Nếu không tìm thấy cả trong Firestore và Auth
+//         if (authError.code === "auth/user-not-found") {
+//           return res.status(404).json({
+//             message: `Người dùng với UID ${uid} không tồn tại trong hệ thống.`,
+//           });
+//         }
+//         // Lỗi khác khi truy vấn Firebase Auth
+//         console.error(
+//           `Lỗi khi lấy thông tin người dùng ${uid} từ Firebase Auth:`,
+//           authError
+//         );
+//         return res
+//           .status(500)
+//           .json({ error: "Lỗi máy chủ khi xác thực người dùng." });
+//       }
+//     }
+
+//     // Nếu tìm thấy trong Firestore
+//     const userDataFromFirestore = userDoc.data();
+//     res.status(200).json({
+//       user: {
+//         uid: userDoc.id, // UID (Document ID từ Firestore)
+//         docId: userDoc.id, // Thêm docId để nhất quán với client
+//         email: userDataFromFirestore.email,
+//         fullName: userDataFromFirestore.full_name, // Ánh xạ full_name từ Firestore sang fullName
+//         // Các trường khác từ Firestore nếu client cần
+//         gender: userDataFromFirestore.gender,
+//         birthday: userDataFromFirestore.birthday, // Client sẽ cần parse nếu là Timestamp
+//         role: userDataFromFirestore.role,
+//         user_id: userDataFromFirestore.user_id, // Mã người dùng tùy chỉnh
+//         firestoreDataMissing: false,
+//       },
+//     });
+//   } catch (error) {
+//     // Lỗi chung khi truy vấn Firestore (không phải lỗi không tìm thấy user đã xử lý ở trên)
+//     console.error(`Lỗi chung khi lấy thông tin người dùng ${uid}:`, error);
+//     // Tránh trả về chi tiết lỗi nếu không phải là lỗi "user-not-found" đã được xử lý
+//     if (error.code === "auth/user-not-found") {
+//       // Double check, dù đã có try-catch bên trong
+//       return res.status(404).json({
+//         message: "Người dùng không tồn tại trong Firebase Authentication.",
+//       });
+//     }
+//     res
+//       .status(500)
+//       .json({ error: "Đã xảy ra lỗi khi lấy thông tin người dùng." });
+//   }
+// };
 
 exports.getUserByUserID = async (req, res) => {
   try {
-
     if (!req.params.user_id) {
       return res.status(400).json({ message: "Thiếu user_id trong request." });
     }
     const userDocRef = firestoreService
       .collection("user_service")
       .where("user_id", "==", req.params.user_id);
-    
+
     const userDocSnapshot = await userDocRef.get();
 
     if (userDocSnapshot.empty) {
@@ -479,7 +556,6 @@ exports.getUserByUserID = async (req, res) => {
     const userData = userDocSnapshot.docs[0].data();
 
     return res.status(200).json({ data: userData });
-
   } catch (error) {
     console.error(`Lỗi lấy thông tin người dùng ${req.params.user_id}:`, error);
 
