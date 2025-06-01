@@ -8,7 +8,10 @@ const app = express();
 
 // Middlewares
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true, // cần nếu dùng withCredentials
+}));
 app.use(express.json());
 
 // Rate limiter
@@ -86,7 +89,6 @@ app.use('/project', (req, res, next) => {
 app.use('/notification', createProxyWithRetry({
     target: NOTIFICATION_SERVICE,
     changeOrigin: true,
-    pathRewrite: { '^/notification': '' },
 }));
 
 app.use('/report', (req, res, next) => {
