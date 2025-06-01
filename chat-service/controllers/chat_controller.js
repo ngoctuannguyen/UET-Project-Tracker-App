@@ -66,7 +66,7 @@ const chatController = {
         admin: [...new Set(groupAdmins)], // Loại bỏ trùng lặp
         created_by: creatorId,
         created_at: new Date(),
-        group_id: req.body.group_id
+        group_id: req.body.group_id,
       };
 
       const group = await Group.create(groupData);
@@ -255,7 +255,7 @@ const chatController = {
     }
   },
 
-   getUserGroupsWOAuth: async (req, res) => {
+  getUserGroupsWOAuth: async (req, res) => {
     try {
       // UID này nên được lấy từ authMiddleware, không phải từ params nếu bạn muốn bảo mật
       // Nếu bạn đang lấy từ req.user.uid (do authMiddleware gán vào) thì tốt
@@ -391,7 +391,7 @@ const chatController = {
         .json({ error: "Failed to remove group admin: " + error.message });
     }
   },
-  
+
   removeGroup: async (req, res) => {
     try {
       const groupId = req.params.groupId;
@@ -632,7 +632,7 @@ const chatController = {
   getGroupMessages: async (req, res) => {
     try {
       const groupId = req.params.groupId;
-      const requestingUserUid = req.user.uid;
+      const requestingUserUid = req.query.uid;
 
       const group = await Group.getById(groupId);
       if (!group) {

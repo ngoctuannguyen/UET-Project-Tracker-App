@@ -18,7 +18,7 @@ router.post(
   "/internal/groups",
   validateGroup,
   chatController.createGroupInternal
-)
+);
 
 router.put(
   "/groups/:groupId/members",
@@ -50,10 +50,7 @@ router.put(
   chatController.changeAdmin
 );
 
-router.put(
-  "/internal/groups/:groupId/admins",
-  chatController.addGroupAdmin
-);
+router.put("/internal/groups/:groupId/admins", chatController.addGroupAdmin);
 
 router.delete(
   "/groups/:groupId/admins",
@@ -94,7 +91,7 @@ router.post(
 // Route để lấy tất cả tin nhắn của một group
 router.get(
   "/groups/:groupId/messages",
-  authMiddleware,
+  // authMiddleware,
   chatController.getGroupMessages
 );
 // Các route khác cho message (update, delete) nếu có cũng cần authMiddleware
